@@ -15,7 +15,7 @@ public class Subject {
     @Column(nullable = false, unique = true, length = 50)
     private String code;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false, length = 200)
     private String name;
 
     @Column(columnDefinition = "TEXT")
@@ -45,5 +45,20 @@ public class Subject {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void update(String code, String name, String description) {
+        this.code = code;
+        this.name = name;
+        this.description = description;
+    }
+
+    public static Subject create(String code, String name, String description) {
+        Subject subject = new Subject();
+        subject.code = code;
+        subject.name = name;
+        subject.description = description;
+        subject.createdAt = LocalDateTime.now();
+        return subject;
     }
 }

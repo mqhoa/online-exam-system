@@ -5,6 +5,7 @@ import com.mqhoa.onlineexam.subject.repository.SubjectRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
 public class SubjectService {
@@ -16,6 +17,17 @@ public class SubjectService {
     }
 
     public List<Subject> getAllSubjects() {
-        return subjectRepository.findAll();
+        return subjectRepository.findAllByOrderByIdAsc();
+    }
+
+    public Subject createSubject(String code, String name, String description) {
+        if (subjectRepository.existsByCodeIgnoreCase(code)) {
+            throw new IllegalArgumentException("Subject code already exists");
+        }
+        try {
+            return subjectRepository.save(Subject.create(code, name, description));
+        } catch (DataIntegrityViolationException exception) {
+            throw new IllegalArgumentException("Subject code already exists", exception);
+        }
     }
 }
