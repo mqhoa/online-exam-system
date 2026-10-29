@@ -47,7 +47,7 @@ Quản lý môn học / nhóm giảng viên
 | Kiểm tra database | DBeaver Community |
 | Version control | Git, GitLab |
 | Database migration | Flyway tạm tắt local; schema ngân hàng câu hỏi được tạo bằng SQL trong `docs/database/question-bank-schema.sql` |
-| Authentication/Authorization | Spring Security, định hướng JWT và phân quyền theo vai trò; chưa coi là hoàn tất cho đến khi được cấu hình và kiểm thử |
+| Authentication/Authorization | Spring Security, dự kiến dùng phiên cookie `HttpOnly` và phân quyền theo vai trò; backend auth chưa được triển khai |
 | Kiểm thử API | PowerShell `Invoke-RestMethod`, sau đó có thể bổ sung Postman/JUnit |
 
 Backend hiện được cấu hình biên dịch với Java 17. Môi trường phát triển đã sử dụng Temurin Java 25; nếu gặp lỗi tương thích, kiểm tra `java -version`, Maven và cấu hình compiler trong `backend/pom.xml`.
@@ -101,6 +101,8 @@ cd D:\online-exam-system
 docker compose up -d postgres
 docker compose ps
 ```
+
+Nếu lệnh báo không kết nối được Docker Engine, hãy mở Docker Desktop, đợi trạng thái Engine sẵn sàng rồi chạy lại. Backend cần PostgreSQL hoạt động trước khi khởi động.
 
 Cấu hình kết nối local hiện tại:
 
@@ -196,7 +198,20 @@ $env:POSTGRES_PASSWORD = "your_local_database_password"
 
 Nếu terminal đã có biến môi trường phù hợp thì không cần đặt lại. Không đưa mật khẩu thực vào source code hoặc commit.
 
+Để nạp cả ba biến cấu hình từ file `.env` của repository vào terminal hiện tại mà không in mật khẩu ra màn hình:
+
+```powershell
+Get-Content ..\.env | ForEach-Object {
+    if ($_ -match '^\s*(POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD)\s*=\s*(.*)\s*$') {
+        [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    }
+}
+.\mvnw.cmd spring-boot:run
+```
+
 **Lưu ý về schema:** Flyway tạm tắt theo cấu hình local để tránh chạy migration trên database chưa rõ lịch sử. `spring.jpa.hibernate.ddl-auto=validate` chỉ kiểm tra mapping, không tự tạo bảng. Sau khi kết nối PostgreSQL, chạy `docs/database/question-bank-schema.sql` trên database phát triển để thêm cột/bảng cần thiết. Khi bật lại Flyway, cần đồng bộ schema đã tạo thủ công với lịch sử migration trước khi khởi động ứng dụng.
+
+Nếu gặp `password authentication failed for user "exam_user"`, mật khẩu PostgreSQL đã lưu trong volume có thể khác với `POSTGRES_PASSWORD` hiện tại trong `.env`. Thay đổi `.env` không tự đổi mật khẩu của database đã được khởi tạo. Giữ nguyên volume dữ liệu; mở terminal tại thư mục gốc và chạy `docker compose exec -it postgres psql -U exam_user -d online_exam`, sau đó dùng lệnh `\password exam_user` trong `psql` và nhập đúng mật khẩu đang đặt trong `.env`. Thoát bằng `\q`, nạp lại `.env` vào terminal backend theo bước trên rồi khởi động lại ứng dụng. Không xóa volume để xử lý lỗi xác thực vì thao tác đó sẽ xóa dữ liệu local.
 
 ### 4.5. Kiểm tra API môn học
 
@@ -225,6 +240,10 @@ npm run dev
 ```
 
 Dùng URL mà Vite hiển thị trong terminal. Nếu frontend gọi backend từ trình duyệt, cần cấu hình URL API và CORS phù hợp; không để frontend kết nối trực tiếp tới PostgreSQL.
+
+### 4.7. Xem wireframe và mockup
+
+Mở [mockup tương tác](docs/wireframes/online-exam-mockup.html) trực tiếp trong trình duyệt; mô tả phạm vi và luồng màn hình nằm trong [tài liệu wireframe](docs/wireframes/README.md). Đây là prototype tĩnh với dữ liệu mẫu, chưa kết nối API.
 
 ## 5. Quy ước thiết kế backend
 
