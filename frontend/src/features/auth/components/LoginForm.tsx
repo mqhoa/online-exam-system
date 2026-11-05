@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useI18n } from '../../../i18n'
 import { AuthApiError, authApi, type AuthErrorCode } from '../api/authApi'
 import { getAuthErrorMessage } from '../authErrors'
+import { LanguageSwitcher } from '../../../components/LanguageSwitcher'
 import type { AuthenticatedUser } from '../types'
 
 type LoginFormProps = {
@@ -36,7 +37,10 @@ export function LoginForm({ error: initialError, onAuthenticated }: LoginFormPro
     <form className="login-form" onSubmit={handleSubmit}>
       <div className="login-form-heading">
         <p className="eyebrow">{t('welcomeBack')}</p>
-        <h1>{t('loginTitle')}</h1>
+        <div className="login-title-row">
+          <h1>{t('loginTitle')}</h1>
+          <LanguageSwitcher />
+        </div>
         <p>{t('loginDescription')}</p>
       </div>
 
