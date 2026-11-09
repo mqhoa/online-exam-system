@@ -1,4 +1,3 @@
-import { LanguageSwitcher } from '../../../components/LanguageSwitcher'
 import { LoginForm } from '../components/LoginForm'
 import type { AuthErrorCode } from '../api/authApi'
 import type { AuthenticatedUser } from '../types'

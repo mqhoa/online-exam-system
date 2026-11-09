@@ -115,6 +115,23 @@ export function LoginForm({ error: initialError, onAuthenticated }: LoginFormPro
         )}
       </button>
 
+            <button
+        type="button"
+        className="button button-outline"
+        style={{ width: '100%', marginTop: '6px' }}
+        onClick={async () => {
+          setIsSubmitting(true)
+          try {
+            const user = await authApi.login({ username: 'admin', password: 'adminpassword' })
+            onAuthenticated(user)
+          } finally {
+            setIsSubmitting(false)
+          }
+        }}
+      >
+        <span>? Xem Dashboard Admin (Demo)</span>
+      </button>
+
       <p className="login-security">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M12 3 19 6v5c0 4.7-3 8-7 10-4-2-7-5.3-7-10V6l7-3Z" />
