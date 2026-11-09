@@ -55,11 +55,14 @@ export const authApi = {
     } catch (err) {
       // If backend is unavailable or auth endpoint not implemented, allow demo login
       if (err instanceof AuthApiError && (err.code === 'service-unavailable' || err.code === 'auth-not-implemented')) {
+        const u = (credentials.username || '').toLowerCase()
+        const role: UserRole = u.includes('teacher') || u.includes('giangvien') ? 'TEACHER' : u.includes('student') || u.includes('sinhvien') || /^\d+$/.test(u) ? 'STUDENT' : 'ADMIN'
+        const fullName = role === 'ADMIN' ? 'Admin' : role === 'TEACHER' ? 'ThS. Nguy?n Van Th?y' : 'Nguy?n Anh Long'
         const fallbackUser: AuthenticatedUser = {
-          id: 1,
-          username: credentials.username || 'admin',
-          fullName: credentials.username.toLowerCase() === 'admin' ? 'Admin' : credentials.username,
-          role: 'ADMIN',
+          id: role === 'ADMIN' ? 1 : role === 'TEACHER' ? 2 : 3,
+          username: credentials.username || (role === 'ADMIN' ? 'admin' : role === 'TEACHER' ? 'teacher01' : '1651227671'),
+          fullName,
+          role,
         }
         try {
           localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(fallbackUser))

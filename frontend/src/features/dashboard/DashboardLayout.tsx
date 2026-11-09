@@ -3,13 +3,14 @@ import type { DashboardMenuId } from './types'
 import { StudentManagement } from './StudentManagement'
 import { OtherViews } from './OtherViews'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
-import type { AuthenticatedUser } from '../auth/types'
+import type { AuthenticatedUser, UserRole } from '../auth/types'
 import './Dashboard.css'
 
 type DashboardLayoutProps = {
   user: AuthenticatedUser
   onSignOut: () => void
   isSigningOut?: boolean
+  onSwitchRole?: (role: UserRole) => void
 }
 
 interface MenuItemDef {
@@ -18,7 +19,7 @@ interface MenuItemDef {
   icon: (collapsed: boolean) => React.ReactNode
 }
 
-export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayoutProps) {
+export function DashboardLayout({ user, onSignOut, isSigningOut, onSwitchRole }: DashboardLayoutProps) {
   const [activeMenu, setActiveMenu] = useState<DashboardMenuId>('students')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -141,7 +142,6 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
         </div>
 
         <div className="header-main-bar">
-          {/* Hamburger toggle button */}
           <button
             type="button"
             className="hamburger-toggle-btn"
@@ -155,7 +155,6 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
           </button>
 
           <div className="header-actions-right">
-            {/* User Profile Avatar with Dropdown */}
             <div className="user-dropdown-wrapper" ref={userMenuRef}>
               <button
                 type="button"
@@ -172,11 +171,43 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
               </button>
 
               {isUserMenuOpen && (
-                <div className="user-menu-dropdown">
+                <div className="user-menu-dropdown" style={{ width: 240 }}>
                   <div className="user-menu-info">
                     <p className="user-menu-name">{user.fullName || 'Admin'}</p>
                     <p className="user-menu-role">Quản trị viên ({user.username})</p>
                   </div>
+                  <div className="user-menu-divider" />
+                  {onSwitchRole && (
+                    <div style={{ padding: '6px 16px' }}>
+                      <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#718096' }}>
+                        CHUYỂN VAI TRÒ XEM THỬ:
+                      </p>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn-link-reset"
+                          style={{ fontSize: 11.5 }}
+                          onClick={() => {
+                            onSwitchRole('TEACHER')
+                            setIsUserMenuOpen(false)
+                          }}
+                        >
+                          → Giảng viên
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-link-reset"
+                          style={{ fontSize: 11.5 }}
+                          onClick={() => {
+                            onSwitchRole('STUDENT')
+                            setIsUserMenuOpen(false)
+                          }}
+                        >
+                          → Sinh viên
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="user-menu-divider" />
                   <div className="user-menu-language">
                     <LanguageSwitcher />
@@ -206,7 +237,6 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
       <div className="dashboard-body">
         {/* Left Sidebar */}
         <aside className="dashboard-sidebar" aria-label="Thanh điều hướng bên trái">
-          {/* User profile row */}
           <div className="sidebar-user-block">
             <div className="sidebar-user-avatar">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="#adb5bd">
@@ -220,7 +250,6 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
             )}
           </div>
 
-          {/* Navigation Menu */}
           <nav className="sidebar-nav">
             <ul className="sidebar-menu-list">
               {menuItems.map((item) => {

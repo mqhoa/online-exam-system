@@ -33,6 +33,19 @@ export function LoginForm({ error: initialError, onAuthenticated }: LoginFormPro
     }
   }
 
+  async function handleQuickLogin(targetUsername: string) {
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      const user = await authApi.login({ username: targetUsername, password: 'password123' })
+      onAuthenticated(user)
+    } catch (requestError) {
+      setError(requestError instanceof AuthApiError ? requestError.code : 'request-failed')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <form className="login-form" onSubmit={handleSubmit}>
       <div className="login-form-heading">
@@ -115,22 +128,35 @@ export function LoginForm({ error: initialError, onAuthenticated }: LoginFormPro
         )}
       </button>
 
-            <button
-        type="button"
-        className="button button-outline"
-        style={{ width: '100%', marginTop: '6px' }}
-        onClick={async () => {
-          setIsSubmitting(true)
-          try {
-            const user = await authApi.login({ username: 'admin', password: 'adminpassword' })
-            onAuthenticated(user)
-          } finally {
-            setIsSubmitting(false)
-          }
-        }}
-      >
-        <span>? Xem Dashboard Admin (Demo)</span>
-      </button>
+      <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <p style={{ margin: '0 0 2px', fontSize: '11px', fontWeight: 700, color: '#718096', textAlign: 'center' }}>
+          ĐĂNG NHẬP NHANH CÁC VAI TRÒ (DEMO):
+        </p>
+        <button
+          type="button"
+          className="button button-outline"
+          style={{ width: '100%', minHeight: '36px', fontSize: '12.5px', justifyContent: 'center', borderColor: '#138496', color: '#138496' }}
+          onClick={() => handleQuickLogin('admin')}
+        >
+          👑 1. Quản trị viên (Admin Dashboard)
+        </button>
+        <button
+          type="button"
+          className="button button-outline"
+          style={{ width: '100%', minHeight: '36px', fontSize: '12.5px', justifyContent: 'center', borderColor: '#20c997', color: '#0f766e' }}
+          onClick={() => handleQuickLogin('teacher01')}
+        >
+          🎓 2. Giảng viên (Teacher Dashboard)
+        </button>
+        <button
+          type="button"
+          className="button button-outline"
+          style={{ width: '100%', minHeight: '36px', fontSize: '12.5px', justifyContent: 'center', borderColor: '#0ea5e9', color: '#0369a1' }}
+          onClick={() => handleQuickLogin('student01')}
+        >
+          🎒 3. Sinh viên (Student Portal & Thi)
+        </button>
+      </div>
 
       <p className="login-security">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">

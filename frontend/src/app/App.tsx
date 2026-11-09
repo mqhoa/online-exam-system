@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authApi, AuthApiError } from '../features/auth/api/authApi'
-import type { AuthenticatedUser } from '../features/auth/types'
+import type { AuthenticatedUser, UserRole } from '../features/auth/types'
 import { useI18n } from '../i18n'
 import { authenticationCallback } from './callbacks/authenticationCallback'
 import { LoginPage } from '../features/auth/pages/LoginPage'
@@ -55,6 +55,27 @@ export function App() {
     }
   }
 
+  function handleSwitchRole(role: UserRole) {
+    const updatedUser: AuthenticatedUser = {
+      id: role === 'ADMIN' ? 1 : role === 'TEACHER' ? 2 : 3,
+      username: role === 'ADMIN' ? 'admin' : role === 'TEACHER' ? 'teacher01' : '1651227671',
+      fullName:
+        role === 'ADMIN'
+          ? 'Admin'
+          : role === 'TEACHER'
+          ? 'ThS. Nguyễn Văn Thầy'
+          : 'Nguyễn Anh Long',
+      role,
+    }
+    setUser(updatedUser)
+    authenticationCallback(updatedUser)
+    try {
+      localStorage.setItem('online_exam_active_user', JSON.stringify(updatedUser))
+    } catch {
+      // ignore
+    }
+  }
+
   if (isCheckingSession) {
     return (
       <main className="app-loading" aria-live="polite">
@@ -71,6 +92,7 @@ export function App() {
         isSigningOut={isSigningOut}
         onSignOut={handleSignOut}
         user={user}
+        onSwitchRole={handleSwitchRole}
       />
     )
   }
