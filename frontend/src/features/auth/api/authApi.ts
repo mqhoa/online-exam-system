@@ -21,10 +21,15 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const authEndpoint = `${apiBaseUrl}/api/v1/auth`
 const LOCAL_USER_KEY = 'online_exam_active_user'
 
+function csrfHeader(): Record<string, string> {
+  const token = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='))?.slice('XSRF-TOKEN='.length)
+  return token ? { 'X-XSRF-TOKEN': decodeURIComponent(token) } : {}
+}
+
 export const authApi = {
   async login(credentials: LoginCredentials): Promise<AuthenticatedUser> {
-    try {
-      const response = await request(`${authEndpoint}/login`, {
+    await request(`${authEndpoint}/csrf`, { method: 'GET' })
+    const response = await request(`${authEndpoint}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -52,27 +57,6 @@ export const authApi = {
         // ignore
       }
       return user
-    } catch (err) {
-      // If backend is unavailable or auth endpoint not implemented, allow demo login
-      if (err instanceof AuthApiError && (err.code === 'service-unavailable' || err.code === 'auth-not-implemented')) {
-        const u = (credentials.username || '').toLowerCase()
-        const role: UserRole = u.includes('teacher') || u.includes('giangvien') ? 'TEACHER' : u.includes('student') || u.includes('sinhvien') || /^\d+$/.test(u) ? 'STUDENT' : 'ADMIN'
-        const fullName = role === 'ADMIN' ? 'Admin' : role === 'TEACHER' ? 'ThS. Nguy?n Van Th?y' : 'Nguy?n Anh Long'
-        const fallbackUser: AuthenticatedUser = {
-          id: role === 'ADMIN' ? 1 : role === 'TEACHER' ? 2 : 3,
-          username: credentials.username || (role === 'ADMIN' ? 'admin' : role === 'TEACHER' ? 'teacher01' : '1651227671'),
-          fullName,
-          role,
-        }
-        try {
-          localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(fallbackUser))
-        } catch {
-          // ignore
-        }
-        return fallbackUser
-      }
-      throw err
-    }
   },
 
   async getCurrentUser(): Promise<AuthenticatedUser | null> {
@@ -106,21 +90,7 @@ export const authApi = {
         // ignore
       }
       return user
-    } catch {
-      // Fallback: check localStorage for offline / dev demo session
-      try {
-        const saved = localStorage.getItem(LOCAL_USER_KEY)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          if (parsed && typeof parsed === 'object' && parsed.id && parsed.username && parsed.role) {
-            return parsed as AuthenticatedUser
-          }
-        }
-      } catch {
-        // ignore
-      }
-      return null
-    }
+    } catch { return null }
   },
 
   async logout(): Promise<void> {
@@ -149,7 +119,7 @@ async function request(url: string, init: RequestInit) {
     return await fetch(url, {
       ...init,
       credentials: 'include',
-      headers: { Accept: 'application/json', ...init.headers },
+      headers: { Accept: 'application/json', ...(['GET', 'HEAD', 'OPTIONS'].includes((init.method ?? 'GET').toUpperCase()) ? {} : csrfHeader()), ...init.headers },
     })
   } catch {
     throw new AuthApiError('service-unavailable')

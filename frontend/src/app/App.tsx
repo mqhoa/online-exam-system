@@ -58,7 +58,7 @@ export function App() {
   function handleSwitchRole(role: UserRole) {
     const updatedUser: AuthenticatedUser = {
       id: role === 'ADMIN' ? 1 : role === 'TEACHER' ? 2 : 3,
-      username: role === 'ADMIN' ? 'admin' : role === 'TEACHER' ? 'teacher01' : '1651227671',
+      username: role === 'ADMIN' ? 'admin' : role === 'TEACHER' ? 'teacher' : 'student',
       fullName:
         role === 'ADMIN'
           ? 'Admin'

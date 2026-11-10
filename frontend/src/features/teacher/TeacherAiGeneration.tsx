@@ -179,9 +179,6 @@ export function TeacherAiGeneration() {
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
               Module AI sinh câu hỏi từ tài liệu PDF (Gemini API)
             </h3>
-            <p style={{ margin: 0, fontSize: 12.5, color: '#718096' }}>
-              Quy trình: Trích xuất nội dung PDF bằng PDFBox → Gemini AI phân tích kiến thức → Giảng viên duyệt vào Ngân hàng câu hỏi
-            </p>
           </div>
         </div>
 

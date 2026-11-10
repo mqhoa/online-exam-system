@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Question, QuestionOption } from './teacherMockData'
-import { INITIAL_QUESTIONS, INITIAL_TEACHER_GROUPS } from './teacherMockData'
+import { examApi, csrfHeaders } from '../exam/examApi'
+import { authApi } from '../auth/api/authApi'
 
 export function TeacherQuestionBank() {
-  const [questions, setQuestions] = useState<Question[]>(INITIAL_QUESTIONS)
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [groups, setGroups] = useState<Array<{ id: number; name: string }>>([])
   const [selectedGroup, setSelectedGroup] = useState<number>(0)
   const [selectedType, setSelectedType] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
@@ -22,6 +24,21 @@ export function TeacherQuestionBank() {
     { content: '', correct: false },
   ])
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  useEffect(() => { examApi.groups().then((items) => { setGroups(items); if (items[0]) setFormGroupId(items[0].id) })
+    .catch((error: unknown) => alert(error instanceof Error ? error.message : 'Không tải được nhóm')) }, [])
+
+  useEffect(() => {
+    if (!groups.length) return
+    Promise.all(groups.map(async (group) => {
+      const response = await fetch(`/api/questions?teacherGroupId=${group.id}`, { credentials: 'include' })
+      if (!response.ok) throw new Error('Không tải được ngân hàng câu hỏi')
+      return response.json() as Promise<Array<{ id: number; teacherGroupId: number; content: string; questionType: Question['questionType']; createdAt: string; options: QuestionOption[] }>>
+    })).then((batches) => setQuestions(batches.flat().map((q) => ({ ...q,
+      teacherGroupName: groups.find((g) => g.id === q.teacherGroupId)?.name ?? '',
+      difficulty: 'Trung bình', points: 0.5 }))))
+      .catch((error: unknown) => alert(error instanceof Error ? error.message : 'Không tải được câu hỏi'))
+  }, [groups])
 
   function showToast(msg: string) {
     setToastMsg(msg)
@@ -65,8 +82,11 @@ export function TeacherQuestionBank() {
 
   function handleDelete(id: number) {
     if (window.confirm('Bạn có chắc chắn muốn xóa câu hỏi này khỏi ngân hàng câu hỏi?')) {
-      setQuestions((prev) => prev.filter((q) => q.id !== id))
-      showToast('Đã xóa câu hỏi!')
+      fetch(`/api/questions/${id}`, { method: 'DELETE', credentials: 'include', headers: csrfHeaders() }).then((response) => {
+        if (!response.ok) throw new Error('Không thể xóa câu hỏi')
+        setQuestions((prev) => prev.filter((q) => q.id !== id))
+        showToast('Đã xóa câu hỏi')
+      }).catch((error: unknown) => alert(error instanceof Error ? error.message : 'Không thể xóa câu hỏi'))
     }
   }
 
@@ -85,7 +105,7 @@ export function TeacherQuestionBank() {
     }
   }
 
-  function handleSaveQuestion() {
+  async function handleSaveQuestion() {
     if (!formContent.trim()) {
       alert('Vui lòng nhập nội dung câu hỏi!')
       return
@@ -110,7 +130,24 @@ export function TeacherQuestionBank() {
       return
     }
 
-    const group = INITIAL_TEACHER_GROUPS.find((g) => g.id === formGroupId)
+    const user = await authApi.getCurrentUser()
+    if (!user) { alert('Phiên đăng nhập đã hết hạn'); return }
+    const payload = { content: formContent.trim(), questionType: formType,
+      options: validOptions.map((option) => ({ content: option.content, correct: option.correct })) }
+    let saved: { id: number; options: QuestionOption[] }
+    try {
+      const response = await fetch(editingQuestion ? `/api/questions/${editingQuestion.id}` : '/api/questions', {
+        method: editingQuestion ? 'PUT' : 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify(editingQuestion ? payload : { ...payload, teacherGroupId: formGroupId, createdBy: user.id }),
+      })
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? 'Không thể lưu câu hỏi')
+      saved = await response.json() as typeof saved
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Không thể lưu câu hỏi')
+      return
+    }
+    const group = groups.find((g) => g.id === formGroupId)
 
     if (editingQuestion) {
       setQuestions((prev) =>
@@ -123,7 +160,7 @@ export function TeacherQuestionBank() {
                 teacherGroupId: formGroupId,
                 teacherGroupName: group ? group.name : q.teacherGroupName,
                 difficulty: formDifficulty,
-                options: validOptions,
+                options: saved.options,
               }
             : q
         )
@@ -131,7 +168,7 @@ export function TeacherQuestionBank() {
       showToast('Đã cập nhật câu hỏi!')
     } else {
       const newQ: Question = {
-        id: Date.now(),
+        id: saved.id,
         content: formContent.trim(),
         questionType: formType,
         teacherGroupId: formGroupId,
@@ -139,7 +176,7 @@ export function TeacherQuestionBank() {
         difficulty: formDifficulty,
         points: formType === 'SINGLE_CHOICE' ? 0.25 : 0.5,
         createdAt: new Date().toISOString(),
-        options: validOptions,
+        options: saved.options,
       }
       setQuestions((prev) => [newQ, ...prev])
       showToast('Đã thêm mới câu hỏi vào ngân hàng!')
@@ -181,7 +218,7 @@ export function TeacherQuestionBank() {
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
               </svg>
             </span>
-            <span>+ Thêm câu hỏi</span>
+            <span>Thêm câu hỏi</span>
           </button>
         </div>
       </div>
@@ -214,7 +251,7 @@ export function TeacherQuestionBank() {
                 className="filter-select"
               >
                 <option value={0}>Tất cả nhóm môn học</option>
-                {INITIAL_TEACHER_GROUPS.map((g) => (
+                {groups.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </select>
@@ -368,7 +405,7 @@ export function TeacherQuestionBank() {
                     value={formGroupId}
                     onChange={(e) => setFormGroupId(Number(e.target.value))}
                   >
-                    {INITIAL_TEACHER_GROUPS.map((g) => (
+                    {groups.map((g) => (
                       <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>

@@ -84,38 +84,6 @@ export function TeacherDashboard({
                     <p className="user-menu-role">Giảng viên ({user.username})</p>
                   </div>
                   <div className="user-menu-divider" />
-                  {onSwitchRole && (
-                    <div style={{ padding: '6px 16px' }}>
-                      <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#718096' }}>
-                        CHUYỂN VAI TRÒ XEM THỬ:
-                      </p>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          className="btn-link-reset"
-                          style={{ fontSize: 11.5 }}
-                          onClick={() => {
-                            onSwitchRole('ADMIN')
-                            setIsUserMenuOpen(false)
-                          }}
-                        >
-                          → Admin
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-link-reset"
-                          style={{ fontSize: 11.5 }}
-                          onClick={() => {
-                            onSwitchRole('STUDENT')
-                            setIsUserMenuOpen(false)
-                          }}
-                        >
-                          → Sinh viên
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="user-menu-divider" />
                   <div className="user-menu-language">
                     <LanguageSwitcher />
                   </div>

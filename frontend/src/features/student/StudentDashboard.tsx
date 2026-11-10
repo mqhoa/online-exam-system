@@ -6,6 +6,7 @@ import { StudentExamList } from './StudentExamList'
 import { StudentExamRoom } from './StudentExamRoom'
 import { StudentExamResult } from './StudentExamResult'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { examApi, type AttemptView, type ResultView } from '../exam/examApi'
 
 type StudentTab = 'exams' | 'history'
 
@@ -39,12 +40,29 @@ export function StudentDashboard({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  function handleStartExam(exam: StudentExam) {
+  useEffect(() => {
+    const savedId = localStorage.getItem('online_exam_current_attempt')
+    if (!savedId) return
+    examApi.attempt(Number(savedId)).then((attempt) => {
+      if (attempt.status !== 'IN_PROGRESS') {
+        localStorage.removeItem('online_exam_current_attempt')
+        examApi.result(attempt.id).then((result) => setLatestResult({ examTitle: result.examTitle,
+          subjectName: 'Kỳ thi trực tuyến', totalQuestions: attempt.exam.questions.length,
+          answeredCount: attempt.answers.length, score: result.score, totalScore: result.totalScore,
+          timeTaken: '', isAutoSubmitted: result.status === 'AUTO_SUBMITTED' }))
+        return
+      }
+      setActiveExam(fromAttempt(attempt))
+    }).catch(() => localStorage.removeItem('online_exam_current_attempt'))
+  }, [])
+
+  function handleStartExam(exam: StudentExam, _attempt: AttemptView) {
     setLatestResult(null)
     setActiveExam(exam)
   }
 
   function handleFinishExam(result: ExamSubmissionResult) {
+    localStorage.removeItem('online_exam_current_attempt')
     setActiveExam(null)
     setLatestResult(result)
   }
@@ -101,38 +119,6 @@ export function StudentDashboard({
                     <p className="user-menu-name">{user.fullName || 'Nguyễn Anh Long'}</p>
                     <p className="user-menu-role">Sinh viên ({user.username})</p>
                   </div>
-                  <div className="user-menu-divider" />
-                  {onSwitchRole && (
-                    <div style={{ padding: '6px 16px' }}>
-                      <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#718096' }}>
-                        CHUYỂN VAI TRÒ XEM THỬ:
-                      </p>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          className="btn-link-reset"
-                          style={{ fontSize: 11.5 }}
-                          onClick={() => {
-                            onSwitchRole('ADMIN')
-                            setIsUserMenuOpen(false)
-                          }}
-                        >
-                          → Admin
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-link-reset"
-                          style={{ fontSize: 11.5 }}
-                          onClick={() => {
-                            onSwitchRole('TEACHER')
-                            setIsUserMenuOpen(false)
-                          }}
-                        >
-                          → Giảng viên
-                        </button>
-                      </div>
-                    </div>
-                  )}
                   <div className="user-menu-divider" />
                   <div className="user-menu-language">
                     <LanguageSwitcher />
@@ -241,6 +227,8 @@ export function StudentDashboard({
             />
           ) : activeTab === 'exams' ? (
             <StudentExamList onStartExam={handleStartExam} />
+          ) : activeTab === 'history' ? (
+            <StudentExamHistory />
           ) : (
             /* History view */
             <div className="student-portal-page">
@@ -283,7 +271,7 @@ export function StudentDashboard({
                         <td><strong>Bài tập đánh giá - Kế toán tài chính doanh nghiệp</strong></td>
                         <td>Kế toán tài chính (FIN2001)</td>
                         <td>2026-11-05 10:15</td>
-                        <td><span className="badge-valid">ĐÃ NỘP (SUBMITTED)</span></td>
+                        <td><span className="badge-valid">ĐÃ NỘP</span></td>
                         <td>
                           <strong style={{ fontSize: 15, color: '#28a745' }}>8.5 / 10.0</strong>
                         </td>
@@ -298,4 +286,28 @@ export function StudentDashboard({
       </div>
     </div>
   )
+}
+
+function fromAttempt(attempt: AttemptView): StudentExam {
+  const exam = attempt.exam
+  return { id: exam.id, attemptId: attempt.id, deadline: attempt.deadline, title: exam.title,
+    subjectCode: `GROUP-${exam.teacherGroupId}`, subjectName: 'Kỳ thi trực tuyến',
+    durationMinutes: exam.durationMinutes, totalQuestions: exam.totalQuestionCount,
+    totalPoints: exam.totalPoints, startTime: exam.startTime,
+    endTime: exam.endTime, pin: '', status: exam.status === 'DRAFT' ? 'CLOSED' : exam.status,
+    questions: exam.questions.map((q) => ({ id: q.id, questionOrder: q.position, content: q.content,
+      questionType: q.questionType, options: q.options, points: q.score })), savedAnswers: attempt.answers }
+}
+
+function StudentExamHistory() {
+  const [results, setResults] = useState<ResultView[]>([])
+  const [error, setError] = useState('')
+  useEffect(() => { examApi.myResults().then(setResults).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Không tải được kết quả')) }, [])
+  return <div className="student-portal-page"><div className="table-card">
+    <div className="card-header-bar"><h3 className="card-title">Lịch sử kết quả</h3></div>
+    {error && <div className="modal-alert" role="alert">{error}</div>}
+    <div className="table-responsive"><table className="student-table"><thead><tr><th>Kỳ thi</th><th>Thời gian nộp</th><th>Trạng thái</th><th>Điểm</th></tr></thead>
+      <tbody>{results.map((r) => <tr key={r.attemptId}><td>{r.examTitle}</td><td>{r.submittedAt ? new Date(r.submittedAt).toLocaleString() : '—'}</td><td>{r.status}</td><td>{r.score} / {r.totalScore}</td></tr>)}
+        {!results.length && !error && <tr><td colSpan={4}>Chưa có kết quả.</td></tr>}</tbody></table></div>
+  </div></div>
 }

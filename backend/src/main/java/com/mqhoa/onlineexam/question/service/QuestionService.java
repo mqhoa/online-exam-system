@@ -38,10 +38,11 @@ public class QuestionService {
     }
 
     @Transactional(readOnly = true)
-    public List<QuestionResponse> listByTeacherGroup(Long teacherGroupId) {
+    public List<QuestionResponse> listByTeacherGroup(Long teacherGroupId, String username) {
         if (!references.teacherGroupExists(teacherGroupId)) {
             throw new ResourceNotFoundException("Teacher group", teacherGroupId);
         }
+        if (!references.canManageGroup(username, teacherGroupId)) throw new ForbiddenOperationException("You cannot access this teacher group");
         List<Question> found = questions.findByTeacherGroupIdOrderByCreatedAtDesc(teacherGroupId);
         if (found.isEmpty()) return List.of();
 
@@ -57,30 +58,31 @@ public class QuestionService {
     }
 
     @Transactional(readOnly = true)
-    public QuestionResponse get(Long questionId) {
+    public QuestionResponse get(Long questionId, String username) {
         Question question = getQuestion(questionId);
+        if (!references.canManageGroup(username, question.getTeacherGroupId())) throw new ForbiddenOperationException("You cannot access this question");
         return mapper.toResponse(question, options.findByQuestionIdOrderByPositionAsc(questionId));
     }
 
     @Transactional
-    public QuestionResponse create(CreateQuestionRequest request) {
+    public QuestionResponse create(CreateQuestionRequest request, String username) {
         validateOptions(request.questionType(), request.options());
         if (!references.teacherGroupExists(request.teacherGroupId())) {
             throw new ResourceNotFoundException("Teacher group", request.teacherGroupId());
         }
-        if (!references.teacherBelongsToGroup(request.createdBy(), request.teacherGroupId())) {
-            throw new ForbiddenOperationException("Creator must be an active teacher assigned to the selected group");
-        }
-        Question question = questions.save(Question.create(request.teacherGroupId(), request.createdBy(),
+        if (!references.canManageGroup(username, request.teacherGroupId())) throw new ForbiddenOperationException("Teacher is not assigned to this group");
+        Question question = questions.save(Question.create(request.teacherGroupId(), references.userId(username),
                 request.content().trim(), request.questionType()));
         List<QuestionOption> savedOptions = options.saveAll(toEntities(question.getId(), request.options()));
         return mapper.toResponse(question, savedOptions);
     }
 
     @Transactional
-    public QuestionResponse update(Long questionId, UpdateQuestionRequest request) {
+    public QuestionResponse update(Long questionId, UpdateQuestionRequest request, String username) {
         validateOptions(request.questionType(), request.options());
         Question question = getQuestion(questionId);
+        if (!references.canManageGroup(username, question.getTeacherGroupId())) throw new ForbiddenOperationException("You cannot update this question");
+        if (references.isLockedByPublishedExam(questionId)) throw new InvalidRequestException("A question used by a published or closed exam cannot be changed");
         question.update(request.content().trim(), request.questionType());
         questions.save(question);
 
@@ -92,8 +94,10 @@ public class QuestionService {
     }
 
     @Transactional
-    public void delete(Long questionId) {
+    public void delete(Long questionId, String username) {
         Question question = getQuestion(questionId);
+        if (!references.canManageGroup(username, question.getTeacherGroupId())) throw new ForbiddenOperationException("You cannot delete this question");
+        if (references.isLockedByPublishedExam(questionId)) throw new InvalidRequestException("A question used by a published or closed exam cannot be deleted");
         questions.delete(question);
     }
 

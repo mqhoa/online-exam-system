@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @Validated
@@ -30,30 +31,30 @@ public class QuestionController {
     public QuestionController(QuestionService questionService) { this.questionService = questionService; }
 
     @GetMapping
-    public List<QuestionResponse> getByTeacherGroup(@RequestParam @Positive Long teacherGroupId) {
-        return questionService.listByTeacherGroup(teacherGroupId);
+    public List<QuestionResponse> getByTeacherGroup(@RequestParam @Positive Long teacherGroupId, Authentication authentication) {
+        return questionService.listByTeacherGroup(teacherGroupId, authentication.getName());
     }
 
     @GetMapping("/{questionId}")
-    public QuestionResponse get(@PathVariable @Positive Long questionId) {
-        return questionService.get(questionId);
+    public QuestionResponse get(@PathVariable @Positive Long questionId, Authentication authentication) {
+        return questionService.get(questionId, authentication.getName());
     }
 
     @PostMapping
-    public ResponseEntity<QuestionResponse> create(@Valid @RequestBody CreateQuestionRequest request) {
-        QuestionResponse response = questionService.create(request);
+    public ResponseEntity<QuestionResponse> create(@Valid @RequestBody CreateQuestionRequest request, Authentication authentication) {
+        QuestionResponse response = questionService.create(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/{questionId}")
     public QuestionResponse update(@PathVariable @Positive Long questionId,
-                                   @Valid @RequestBody UpdateQuestionRequest request) {
-        return questionService.update(questionId, request);
+                                   @Valid @RequestBody UpdateQuestionRequest request, Authentication authentication) {
+        return questionService.update(questionId, request, authentication.getName());
     }
 
     @DeleteMapping("/{questionId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable @Positive Long questionId) {
-        questionService.delete(questionId);
+    public void delete(@PathVariable @Positive Long questionId, Authentication authentication) {
+        questionService.delete(questionId, authentication.getName());
     }
 }

@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import org.springframework.security.core.Authentication;
+import com.mqhoa.onlineexam.common.ForbiddenOperationException;
 
 @RestController
 @RequestMapping("/api/subjects")
@@ -31,7 +33,10 @@ public class SubjectController {
 
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
-    public Subject createSubject(@Valid @RequestBody CreateSubjectRequest request) {
+    public Subject createSubject(@Valid @RequestBody CreateSubjectRequest request, Authentication authentication) {
+        if (authentication.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            throw new ForbiddenOperationException("Only administrators can create subjects");
+        }
         return subjectService.createSubject(request.code().trim(), request.name().trim(), request.description());
     }
 }

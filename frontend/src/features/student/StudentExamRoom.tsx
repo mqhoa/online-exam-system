@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { StudentExam, StudentExamQuestion } from './studentMockData'
 import { MOCK_EXAM_QUESTIONS } from './studentMockData'
+import { examApi, type ResultView } from '../exam/examApi'
+
+function restoredAnswers(exam: StudentExam) {
+  const answers = new Map((exam.savedAnswers ?? []).map((answer) => [answer.questionId, answer]))
+  if (exam.attemptId) {
+    try {
+      const pending = JSON.parse(localStorage.getItem(`online_exam_pending_answers_${exam.attemptId}`) ?? '{}') as Record<string, { optionIds: number[]; answerText: string | null }>
+      for (const [questionId, answer] of Object.entries(pending)) answers.set(Number(questionId), { questionId: Number(questionId), ...answer })
+    } catch { /* Ignore a malformed local recovery record. */ }
+  }
+  return [...answers.values()]
+}
 
 export interface ExamSubmissionResult {
   examTitle: string
@@ -20,18 +32,23 @@ type StudentExamRoomProps = {
 }
 
 export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomProps) {
-  const [questions] = useState<StudentExamQuestion[]>(MOCK_EXAM_QUESTIONS)
+  const [questions] = useState<StudentExamQuestion[]>(exam.questions ?? MOCK_EXAM_QUESTIONS)
   const [currentIndex, setCurrentIndex] = useState(0)
 
   // Answers store: map questionId -> selectedOptionId(s) or text
-  const [singleAnswers, setSingleAnswers] = useState<Record<number, number>>({})
-  const [multiAnswers, setMultiAnswers] = useState<Record<number, number[]>>({})
-  const [shortAnswers, setShortAnswers] = useState<Record<number, string>>({})
+  const [singleAnswers, setSingleAnswers] = useState<Record<number, number>>(() => Object.fromEntries(restoredAnswers(exam).filter(a => exam.questions?.find(q => q.id === a.questionId)?.questionType === 'SINGLE_CHOICE').map(a => [a.questionId, a.optionIds[0]])))
+  const [multiAnswers, setMultiAnswers] = useState<Record<number, number[]>>(() => Object.fromEntries(restoredAnswers(exam).filter(a => exam.questions?.find(q => q.id === a.questionId)?.questionType === 'MULTIPLE_CHOICE').map(a => [a.questionId, a.optionIds])))
+  const [shortAnswers, setShortAnswers] = useState<Record<number, string>>(() => Object.fromEntries(restoredAnswers(exam).filter(a => a.answerText).map(a => [a.questionId, a.answerText ?? ''])))
 
   // Countdown timer in seconds
-  const [secondsRemaining, setSecondsRemaining] = useState(exam.durationMinutes * 60)
+  const [secondsRemaining, setSecondsRemaining] = useState(() => exam.deadline ? Math.max(0, Math.floor((Date.parse(exam.deadline) - Date.now()) / 1000)) : exam.durationMinutes * 60)
   const [saveCounter, setSaveCounter] = useState(0)
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
+  const [saveError, setSaveError] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const submitStarted = useRef(false)
+
+  const calculateScore = useCallback(() => 0, [])
 
   const isQuestionAnswered = useCallback((q: StudentExamQuestion): boolean => {
     if (q.questionType === 'SINGLE_CHOICE') {
@@ -45,26 +62,6 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
     }
     return false
   }, [singleAnswers, multiAnswers, shortAnswers])
-
-  const calculateScore = useCallback((): number => {
-    let score = 0
-    questions.forEach((q) => {
-      if (q.id === 1 && singleAnswers[1] === 101) score += 2.0
-      if (q.id === 2) {
-        const selected = multiAnswers[2] || []
-        if (selected.includes(105) && selected.includes(106) && selected.includes(107) && !selected.includes(108)) {
-          score += 2.0
-        }
-      }
-      if (q.id === 3 && (shortAnswers[3] || '').trim().toLowerCase() === 'final') score += 2.0
-      if (q.id === 4 && singleAnswers[4] === 111) score += 2.0
-      if (q.id === 5) {
-        const ans = (shortAnswers[5] || '').trim().toLowerCase()
-        if (ans.includes('jwt') || ans.includes('token')) score += 2.0
-      }
-    })
-    return score
-  }, [questions, singleAnswers, multiAnswers, shortAnswers])
 
   const handleAutoSubmit = useCallback(() => {
     const score = calculateScore()
@@ -81,15 +78,36 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
     })
   }, [calculateScore, questions, isQuestionAnswered, onFinishExam, exam])
 
+  const submitToServer = useCallback(async (auto: boolean) => {
+    if (!exam.attemptId || submitStarted.current) return
+    submitStarted.current = true
+    setSubmitError('')
+    try {
+      const key = `online_exam_pending_answers_${exam.attemptId}`
+      const pending = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, { optionIds: number[]; answerText: string | null }>
+      for (const [questionId, answer] of Object.entries(pending)) await examApi.saveAnswer(exam.attemptId, Number(questionId), answer)
+      localStorage.removeItem(key)
+      const result: ResultView = await examApi.submit(exam.attemptId)
+      onFinishExam({ examTitle: result.examTitle, subjectName: exam.subjectName,
+        totalQuestions: questions.length, answeredCount: questions.filter(isQuestionAnswered).length,
+        score: result.score, totalScore: result.totalScore, timeTaken: '',
+        isAutoSubmitted: result.status === 'AUTO_SUBMITTED' || auto })
+    } catch (error) {
+      submitStarted.current = false
+      setSubmitError(error instanceof Error ? error.message : 'Nộp bài thất bại. Hãy thử lại khi có mạng.')
+    }
+  }, [exam, isQuestionAnswered, onFinishExam, questions])
+
   const autoSubmitRef = useRef(handleAutoSubmit)
   useEffect(() => {
-    autoSubmitRef.current = handleAutoSubmit
-  }, [handleAutoSubmit])
+    autoSubmitRef.current = () => { void submitToServer(true) }
+  }, [submitToServer])
 
   // Countdown effect
   useEffect(() => {
     const timer = window.setInterval(() => {
       setSecondsRemaining((prev) => {
+        if (exam.deadline) return Math.max(0, Math.floor((Date.parse(exam.deadline) - Date.now()) / 1000))
         if (prev <= 1) {
           clearInterval(timer)
           autoSubmitRef.current()
@@ -100,7 +118,7 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [exam.deadline])
 
   function formatTime(totalSeconds: number) {
     const mins = Math.floor(totalSeconds / 60)
@@ -108,8 +126,38 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   }
 
+  async function saveAnswer(questionId: number, answer: { optionIds: number[]; answerText: string | null }) {
+    if (!exam.attemptId) return
+    const key = `online_exam_pending_answers_${exam.attemptId}`
+    const pending = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, typeof answer>
+    pending[String(questionId)] = answer
+    localStorage.setItem(key, JSON.stringify(pending))
+    try {
+      await examApi.saveAnswer(exam.attemptId, questionId, answer)
+      delete pending[String(questionId)]
+      if (Object.keys(pending).length) localStorage.setItem(key, JSON.stringify(pending))
+      else localStorage.removeItem(key)
+      setSaveError(false)
+    } catch {
+      setSaveError(true)
+    }
+  }
+
+  useEffect(() => {
+    const retryPending = () => {
+      const key = `online_exam_pending_answers_${exam.attemptId}`
+      const pending = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, { optionIds: number[]; answerText: string | null }>
+      for (const [questionId, answer] of Object.entries(pending)) void saveAnswer(Number(questionId), answer)
+      if (exam.deadline && Date.now() >= Date.parse(exam.deadline)) autoSubmitRef.current()
+    }
+    retryPending()
+    window.addEventListener('online', retryPending)
+    return () => window.removeEventListener('online', retryPending)
+  }, [exam.attemptId])
+
   function handleSelectSingle(qId: number, optionId: number) {
     setSingleAnswers((prev) => ({ ...prev, [qId]: optionId }))
+    void saveAnswer(qId, { optionIds: [optionId], answerText: null })
     setSaveCounter((prev) => prev + 1)
   }
 
@@ -118,6 +166,7 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
       const current = prev[qId] || []
       const exists = current.includes(optionId)
       const updated = exists ? current.filter((id) => id !== optionId) : [...current, optionId]
+      void saveAnswer(qId, { optionIds: updated, answerText: null })
       return { ...prev, [qId]: updated }
     })
     setSaveCounter((prev) => prev + 1)
@@ -125,6 +174,7 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
 
   function handleShortAnswerChange(qId: number, text: string) {
     setShortAnswers((prev) => ({ ...prev, [qId]: text }))
+    void saveAnswer(qId, { optionIds: [], answerText: text })
     setSaveCounter((prev) => prev + 1)
   }
 
@@ -132,20 +182,7 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
 
   function handleManualSubmit() {
     setIsSubmitModalOpen(false)
-    const score = calculateScore()
-    const usedSeconds = exam.durationMinutes * 60 - secondsRemaining
-    const usedMins = Math.max(1, Math.ceil(usedSeconds / 60))
-
-    onFinishExam({
-      examTitle: exam.title,
-      subjectName: exam.subjectName,
-      totalQuestions: questions.length,
-      answeredCount,
-      score,
-      totalScore: 10.0,
-      timeTaken: `${usedMins} phút`,
-      isAutoSubmitted: false,
-    })
+    void submitToServer(false)
   }
 
   const currentQ = questions[currentIndex]
@@ -153,6 +190,7 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
 
   return (
     <div className="exam-room-container" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {submitError && <div className="modal-alert" role="alert">{submitError}</div>}
       {/* Exam Header Bar */}
       <div
         className="table-card"
@@ -176,7 +214,7 @@ export function StudentExamRoom({ exam, onFinishExam, onExit }: StudentExamRoomP
             {exam.title}
           </h2>
           <span style={{ fontSize: 12, color: '#718096' }}>
-            💾 Trạng thái: <strong style={{ color: '#28a745' }}>Đã tự động lưu đáp án ({saveCounter} lượt) ✓</strong>
+            💾 Trạng thái: <strong style={{ color: saveError ? '#c53030' : '#28a745' }}>{saveError ? 'Chưa đồng bộ, sẽ thử lại khi có mạng' : `Đã gửi ${saveCounter} lần lưu`}</strong>
           </span>
         </div>
 

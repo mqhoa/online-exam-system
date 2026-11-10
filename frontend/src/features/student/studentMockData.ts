@@ -21,6 +21,10 @@ export interface StudentExam {
   status: 'PUBLISHED' | 'CLOSED'
   isCompleted?: boolean
   score?: number
+  attemptId?: number
+  deadline?: string
+  questions?: StudentExamQuestion[]
+  savedAnswers?: Array<{ questionId: number; optionIds: number[]; answerText: string | null }>
 }
 
 export const STUDENT_AVAILABLE_EXAMS: StudentExam[] = [

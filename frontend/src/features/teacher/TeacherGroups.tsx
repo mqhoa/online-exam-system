@@ -28,9 +28,6 @@ export function TeacherGroups({ onSelectGroupForQuestions }: TeacherGroupsProps)
       <div className="table-card">
         <div className="card-header-bar">
           <h3 className="card-title">Các nhóm giảng viên môn học được phân quyền</h3>
-          <span style={{ fontSize: 12.5, color: '#718096' }}>
-            Giảng viên có quyền tạo ngân hàng câu hỏi và tổ chức kỳ thi cho các nhóm này
-          </span>
         </div>
 
         <div className="table-responsive">

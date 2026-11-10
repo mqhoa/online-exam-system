@@ -24,4 +24,21 @@ public class QuestionReferenceRepository {
                         "AND u.role = 'TEACHER' AND u.enabled = TRUE)",
                 Boolean.class, teacherId, groupId));
     }
+
+    public boolean canManageGroup(String username, Long groupId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM users u WHERE lower(u.username)=lower(?) AND u.enabled=TRUE " +
+                        "AND (u.role='ADMIN' OR (u.role='TEACHER' AND EXISTS (SELECT 1 FROM teacher_group_members m WHERE m.teacher_id=u.id AND m.group_id=?))))",
+                Boolean.class, username, groupId));
+    }
+
+    public Long userId(String username) {
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE lower(username)=lower(?) AND enabled=TRUE", Long.class, username);
+    }
+
+    public boolean isLockedByPublishedExam(Long questionId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM exam_questions eq JOIN exams e ON e.id=eq.exam_id WHERE eq.question_id=? AND e.status IN ('PUBLISHED','CLOSED'))",
+                Boolean.class, questionId));
+    }
 }
