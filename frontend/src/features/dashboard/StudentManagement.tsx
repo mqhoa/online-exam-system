@@ -1,27 +1,15 @@
 import { useState, useMemo, useEffect } from 'react'
 import type { Student } from './types'
-import { INITIAL_STUDENTS } from './mockData'
 import { StudentModal } from './StudentModal'
 import { ImportExcelModal } from './ImportExcelModal'
 import { DeleteConfirmModal } from './DeleteConfirmModal'
-
-const STORAGE_KEY = 'online_exam_students_data_v1'
+import { adminApi, type StudentImportResult } from '../admin/adminApi'
 
 export function StudentManagement() {
-  const [students, setStudents] = useState<Student[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return INITIAL_STUDENTS
-  })
+  const [students, setStudents] = useState<Student[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
+  const [importCredentials, setImportCredentials] = useState<StudentImportResult['credentials']>([])
 
   // Modals state
   const [isAddEditOpen, setIsAddEditOpen] = useState(false)
@@ -37,14 +25,20 @@ export function StudentManagement() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  // Save to localStorage whenever students change
   useEffect(() => {
+    void refreshStudents()
+  }, [])
+
+  async function refreshStudents() {
+    setIsLoading(true)
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(students))
-    } catch {
-      // ignore
-    }
-  }, [students])
+      const rows = await adminApi.students()
+      setStudents(rows.map((row) => ({ id: String(row.id), code: row.code, fullName: row.fullName,
+        email: row.email, dateOfBirth: row.dateOfBirth ?? '', classes: row.classes, enabled: row.enabled })))
+      setApiError('')
+    } catch (error) { setApiError(error instanceof Error ? error.message : 'Không tải được danh sách sinh viên') }
+    finally { setIsLoading(false) }
+  }
 
   function showToast(msg: string) {
     setToastMessage(msg)
@@ -88,70 +82,42 @@ export function StudentManagement() {
 
 
   // CRUD handlers
-  function handleSaveStudent(
+  async function handleSaveStudent(
     studentData: Omit<Student, 'id'>,
     existingId?: string
-  ) {
+  ): Promise<void> {
     if (existingId) {
-      setStudents((prev) =>
-        prev.map((s) => (s.id === existingId ? { ...studentData, id: existingId } : s))
-      )
+      await adminApi.updateStudent(Number(existingId), studentData)
+      await refreshStudents()
       showToast(`Đã cập nhật sinh viên "${studentData.fullName}"`)
     } else {
-      const newStudent: Student = {
-        ...studentData,
-        id: String(Date.now()),
-      }
-      setStudents((prev) => [newStudent, ...prev])
-      showToast(`Đã thêm mới sinh viên "${studentData.fullName}"`)
+      const created = await adminApi.createStudent(studentData)
+      setImportCredentials([{username:studentData.code,initialPassword:created.initialPassword}])
+      await refreshStudents()
+      showToast(`Đã tạo tài khoản ${studentData.code}. Tải mật khẩu ban đầu ở khung phía trên.`)
     }
   }
 
-  function handleDeleteStudent(studentId: string) {
+  async function handleDeleteStudent(studentId: string) {
     const s = students.find((item) => item.id === studentId)
-    setStudents((prev) => prev.filter((item) => item.id !== studentId))
-    if (s) {
-      showToast(`Đã xóa sinh viên "${s.fullName}"`)
-    }
+    const enable=s?.enabled===false
+    await adminApi.setStudentEnabled(Number(studentId), enable)
+    await refreshStudents()
+    if (s) showToast(enable?`Đã mở lại tài khoản "${s.fullName}"`:`Đã vô hiệu hóa tài khoản "${s.fullName}"`)
   }
 
-  function handleImportStudents(newStudents: Omit<Student, 'id'>[]) {
-    const withIds: Student[] = newStudents.map((s, idx) => ({
-      ...s,
-      id: `${Date.now()}_${idx}`,
-    }))
-    setStudents((prev) => [...withIds, ...prev])
-    showToast(`Đã import thành công ${newStudents.length} sinh viên!`)
+  async function handleImportStudents(file: File) {
+    const result = await adminApi.importStudents(file)
+    setImportCredentials(result.credentials)
+    await refreshStudents()
+    showToast(`Đã tạo ${result.importedCount} tài khoản sinh viên. Hãy tải danh sách mật khẩu ban đầu để bàn giao.`)
   }
 
-  function handleResetDefaultData() {
-    if (window.confirm('Khôi phục danh sách sinh viên ban đầu theo mẫu ảnh?')) {
-      setStudents(INITIAL_STUDENTS)
-      showToast('Đã khôi phục dữ liệu ban đầu!')
-    }
-  }
+  async function handleDownloadTemplate() { await adminApi.downloadStudentTemplate() }
 
-  function handleDownloadTemplate() {
-    const headers = 'STT,Mã sinh viên,Họ và tên,Lớp,Ngày Sinh,Email\n'
-    const rows = [
-      '1,1651227671,Nguyễn Anh Long,THH1525; KTTC125,1998-06-12,nguyenanhlong1651227671@example.com',
-      '2,1651221159,Đặng Đức Long,KTTC125,1995-11-02,dangduclong1651221159@example.com',
-      '3,1651220980,Dương Hữu An,THH1525,2001-03-14,duonghuuan1651220980@example.com',
-    ].join('\n')
-
-    // Include UTF-8 BOM so Excel opens Vietnamese characters seamlessly
-    const blob = new Blob(['\uFEFF' + headers + rows], {
-      type: 'text/csv;charset=utf-8;',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', 'danh_sach_sinh_vien_mau.csv')
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    showToast('Đã tải xuống tệp danh_sach_sinh_vien_mau.csv!')
+  function downloadInitialPasswords() {
+    const csv=['Tài khoản,Mật khẩu ban đầu',...importCredentials.map((item)=>`${item.username},${item.initialPassword}`)].join('\n')
+    const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='student-initial-passwords.csv';link.click();URL.revokeObjectURL(url)
   }
 
   return (
@@ -163,6 +129,12 @@ export function StudentManagement() {
           <span>{toastMessage}</span>
         </div>
       )}
+      {apiError && <div className="modal-alert" role="alert">{apiError}</div>}
+      {importCredentials.length>0 && <div className="import-hint-box" role="status">
+        Đã import {importCredentials.length} tài khoản. Mật khẩu chỉ hiển thị lần này.
+        <button type="button" className="download-template-link" onClick={downloadInitialPasswords}>Tải thông tin đăng nhập ban đầu</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={()=>setImportCredentials([])}>Ẩn</button>
+      </div>}
 
       {/* Top action row: Breadcrumb (left) & Action buttons (right) */}
       <div className="content-top-bar">
@@ -283,16 +255,7 @@ export function StudentManagement() {
             </div>
           </div>
 
-          <div className="table-toolbar-actions">
-            <button
-              type="button"
-              className="btn-link-reset"
-              onClick={handleResetDefaultData}
-              title="Khôi phục lại danh sách sinh viên ban đầu"
-            >
-              ↺ Đặt lại dữ liệu gốc
-            </button>
-          </div>
+          <div className="table-toolbar-actions" />
         </div>
 
         {/* Data Table */}
@@ -310,7 +273,9 @@ export function StudentManagement() {
               </tr>
             </thead>
             <tbody>
-              {paginatedStudents.length === 0 ? (
+              {isLoading ? (
+                <tr><td colSpan={7} className="no-data-cell">Đang tải danh sách sinh viên…</td></tr>
+              ) : paginatedStudents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="no-data-cell">
                     Không tìm thấy sinh viên nào phù hợp với điều kiện tìm kiếm.
@@ -361,8 +326,8 @@ export function StudentManagement() {
                               setStudentToDelete(student)
                               setIsDeleteOpen(true)
                             }}
-                            title={`Xóa ${student.fullName}`}
-                            aria-label={`Xóa ${student.fullName}`}
+                            title={student.enabled===false?`Mở lại ${student.fullName}`:`Vô hiệu hóa ${student.fullName}`}
+                            aria-label={student.enabled===false?`Mở lại ${student.fullName}`:`Vô hiệu hóa ${student.fullName}`}
                           >
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                               <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />

@@ -2,7 +2,7 @@
 
 Hệ thống thi trực tuyến hỗ trợ quản lý ngân hàng câu hỏi, tổ chức kỳ thi và tự động chấm điểm.
 
-> **Trạng thái hiện tại:** backend có API đọc/tạo môn học, API đọc câu hỏi theo nhóm giảng viên, và migration khởi tạo schema ngân hàng câu hỏi. Cần cấu hình đúng thông tin đăng nhập PostgreSQL và chạy endpoint trên database phát triển để xác nhận vận hành.
+> **Trạng thái hiện tại:** backend/frontend đã nối các luồng quản trị tài khoản, môn học/nhóm giảng viên, ngân hàng câu hỏi, kỳ thi, bài làm/kết quả, Excel và sinh câu hỏi từ PDF. Schema được quản lý bằng Flyway. AI PDF cần cấu hình `GEMINI_API_KEY`; xem [hướng dẫn import/export và AI](docs/api/import-and-ai.md).
 
 ## 1. Mục tiêu dự án
 
@@ -46,8 +46,8 @@ Quản lý môn học / nhóm giảng viên
 | Database local | Docker Compose |
 | Kiểm tra database | DBeaver Community |
 | Version control | Git, GitLab |
-| Database migration | Flyway tạm tắt local; schema ngân hàng câu hỏi được tạo bằng SQL trong `docs/database/question-bank-schema.sql` |
-| Authentication/Authorization | Spring Security, dự kiến dùng phiên cookie `HttpOnly` và phân quyền theo vai trò; backend auth chưa được triển khai |
+| Database migration | Flyway, migration tự chạy khi backend khởi động |
+| Authentication/Authorization | Spring Security, phiên cookie và phân quyền theo vai trò |
 | Kiểm thử API | PowerShell `Invoke-RestMethod`, sau đó có thể bổ sung Postman/JUnit |
 
 Backend hiện được cấu hình biên dịch với Java 17. Môi trường phát triển đã sử dụng Temurin Java 25; nếu gặp lỗi tương thích, kiểm tra `java -version`, Maven và cấu hình compiler trong `backend/pom.xml`.
@@ -172,6 +172,15 @@ mvn spring-boot:run
 
 Backend được cấu hình chạy tại `http://localhost:8080`.
 
+Module sinh câu hỏi PDF cần Gemini API key. Sau khi cài dependency mới và trước khi chạy backend, đặt biến môi trường trong terminal PowerShell:
+
+```powershell
+$env:GEMINI_API_KEY = "<Gemini API key của bạn>"
+$env:GEMINI_MODEL = "gemini-3.8-flash"
+```
+
+Không commit API key. Nếu chưa cấu hình key, các API khác vẫn chạy; job AI sẽ báo trạng thái `FAILED` kèm hướng dẫn cấu hình. Các endpoint Excel, AI và mẫu workbook được mô tả tại [import-and-ai.md](docs/api/import-and-ai.md).
+
 Cấu hình database trong `backend/src/main/resources/application.properties` hiện dự kiến có dạng:
 
 ```properties
@@ -209,7 +218,7 @@ Get-Content ..\.env | ForEach-Object {
 .\mvnw.cmd spring-boot:run
 ```
 
-**Lưu ý về schema:** Flyway tạm tắt theo cấu hình local để tránh chạy migration trên database chưa rõ lịch sử. `spring.jpa.hibernate.ddl-auto=validate` chỉ kiểm tra mapping, không tự tạo bảng. Sau khi kết nối PostgreSQL, chạy `docs/database/question-bank-schema.sql` trên database phát triển để thêm cột/bảng cần thiết. Khi bật lại Flyway, cần đồng bộ schema đã tạo thủ công với lịch sử migration trước khi khởi động ứng dụng.
+**Lưu ý về schema:** Flyway đang bật. Khi backend khởi động, các migration trong `backend/src/main/resources/db/migration` được áp dụng tự động; `spring.jpa.hibernate.ddl-auto=validate` kiểm tra mapping sau migration. Không cần chạy thủ công `docs/database/question-bank-schema.sql` cho database mới.
 
 Nếu gặp `password authentication failed for user "exam_user"`, mật khẩu PostgreSQL đã lưu trong volume có thể khác với `POSTGRES_PASSWORD` hiện tại trong `.env`. Thay đổi `.env` không tự đổi mật khẩu của database đã được khởi tạo. Giữ nguyên volume dữ liệu; mở terminal tại thư mục gốc và chạy `docker compose exec -it postgres psql -U exam_user -d online_exam`, sau đó dùng lệnh `\password exam_user` trong `psql` và nhập đúng mật khẩu đang đặt trong `.env`. Thoát bằng `\q`, nạp lại `.env` vào terminal backend theo bước trên rồi khởi động lại ứng dụng. Không xóa volume để xử lý lỗi xác thực vì thao tác đó sẽ xóa dữ liệu local.
 

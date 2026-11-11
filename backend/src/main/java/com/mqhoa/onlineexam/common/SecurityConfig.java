@@ -2,13 +2,10 @@ package com.mqhoa.onlineexam.common;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.mqhoa.onlineexam.auth.repository.UserRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -22,19 +19,7 @@ public class SecurityConfig {
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
-    UserDetailsService userDetailsService(JdbcTemplate jdbc) {
-        return username -> jdbc.query("SELECT username, password_hash, role, enabled FROM users WHERE lower(username)=lower(?)",
-                rs -> {
-                    if (!rs.next()) throw new UsernameNotFoundException("Invalid username or password");
-                    return User.withUsername(rs.getString("username"))
-                            .password(rs.getString("password_hash"))
-                            .roles(rs.getString("role"))
-                            .disabled(!rs.getBoolean("enabled")).build();
-                }, username);
-    }
-
-    @Bean
-    DaoAuthenticationProvider daoAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder) {
+    DaoAuthenticationProvider daoAuthenticationProvider(UserRepository users, PasswordEncoder encoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(encoder);
         return provider;

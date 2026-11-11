@@ -1,6 +1,6 @@
 package com.mqhoa.onlineexam.exam;
 
-import static com.mqhoa.onlineexam.exam.ExamDtos.*;
+import static com.mqhoa.onlineexam.exam.dto.ExamDtos.*;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -30,7 +30,6 @@ public class ExamController {
     public ExamView close(@PathVariable long id,Authentication auth) { return service.changeStatus(id,"CLOSED",auth); }
     @PostMapping("/exams/{id}/attempts")
     public AttemptView start(@PathVariable long id,@RequestBody PinRequest request,Authentication auth) { return service.start(id,request.pin(),auth); }
-    public record PinRequest(String pin) {}
     @GetMapping("/attempts/{id}")
     public AttemptView attempt(@PathVariable long id,Authentication auth) { return service.getAttempt(id,auth); }
     @PutMapping("/attempts/{id}/answers/{questionId}")

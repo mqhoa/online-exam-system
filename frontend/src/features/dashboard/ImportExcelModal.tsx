@@ -1,11 +1,11 @@
 import { useState, useRef, type ChangeEvent, type DragEvent } from 'react'
-import type { Student } from './types'
+import { adminApi } from '../admin/adminApi'
 
 type ImportExcelModalProps = {
   isOpen: boolean
   onClose: () => void
-  onImport: (students: Omit<Student, 'id'>[]) => void
-  onDownloadTemplate: () => void
+  onImport: (file: File) => Promise<void>
+  onDownloadTemplate: () => void | Promise<void>
 }
 
 type ParsedRow = {
@@ -26,6 +26,8 @@ export function ImportExcelModal({
 }: ImportExcelModalProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload')
   const [fileName, setFileName] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
   const [pasteContent, setPasteContent] = useState('')
   const [isDragging, setIsDragging] = useState(false)
@@ -36,6 +38,7 @@ export function ImportExcelModal({
 
   function resetState() {
     setFileName(null)
+    setSelectedFile(null)
     setParsedRows([])
     setPasteContent('')
     setParseError(null)
@@ -100,7 +103,7 @@ export function ImportExcelModal({
         const code = (cols[codeIdx] ?? '').trim()
         const fullName = (cols[nameIdx] ?? '').trim()
         const rawClass = (cols[classIdx] ?? '').trim()
-        const dateOfBirth = (cols[dobIdx] ?? '').trim() || '2000-01-01'
+        const dateOfBirth = (cols[dobIdx] ?? '').trim()
         const email = (cols[emailIdx] ?? '').trim()
 
         if (!code && !fullName && !email) continue
@@ -112,13 +115,15 @@ export function ImportExcelModal({
               .filter((c) => c.length > 0)
           : ['THH1525']
 
-        const isValid = Boolean(code && fullName && email)
+        const isValid = Boolean(code && fullName && /^\S+@\S+\.\S+$/.test(email) && /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth))
         const error = !code
           ? 'Thiếu mã SV'
           : !fullName
           ? 'Thiếu họ tên'
-          : !email
-          ? 'Thiếu email'
+          : !/^\S+@\S+\.\S+$/.test(email)
+          ? 'Email không hợp lệ'
+          : !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)
+          ? 'Ngày sinh phải theo yyyy-MM-dd'
           : undefined
 
         rows.push({
@@ -144,19 +149,24 @@ export function ImportExcelModal({
     }
   }
 
-  function handleFileSelected(file: File) {
+  async function handleFileSelected(file: File) {
     setFileName(file.name)
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result
-      if (typeof text === 'string') {
-        parseCsvContent(text)
+    setSelectedFile(file)
+    if (/\.(xlsx|xls|csv)$/i.test(file.name)) {
+      setParseError(null)
+      try {
+        const rows = await adminApi.previewStudents(file)
+        setParsedRows(rows.map((row) => ({ code: row.code, fullName: row.fullName, classes: row.classes,
+          dateOfBirth: row.dateOfBirth ?? '', email: row.email, isValid: row.valid,
+          error: row.errors.join(', ') || undefined })))
+      } catch (error) {
+        setParseError(error instanceof Error ? error.message : 'Không đọc được tệp Excel')
+        setParsedRows([])
       }
+      return
     }
-    reader.onerror = () => {
-      setParseError('Lỗi đọc tệp tin. Vui lòng thử lại.')
-    }
-    reader.readAsText(file, 'utf-8')
+    setParseError('Chỉ hỗ trợ .xlsx, .xls hoặc .csv')
+    setParsedRows([])
   }
 
   function onFileInputChange(e: ChangeEvent<HTMLInputElement>) {
@@ -185,28 +195,27 @@ export function ImportExcelModal({
     }
   }
 
-  function handlePasteParse() {
+  async function handlePasteParse() {
     if (!pasteContent.trim()) {
       setParseError('Vui lòng dán dữ liệu vào ô trước khi phân tích.')
       return
     }
+    setSelectedFile(null)
     parseCsvContent(pasteContent)
+    try {
+      const rows=await adminApi.previewStudents(new File([pasteContent],'pasted-students.csv',{type:'text/csv'}))
+      setParsedRows(rows.map((row)=>({code:row.code,fullName:row.fullName,classes:row.classes,dateOfBirth:row.dateOfBirth??'',email:row.email,isValid:row.valid,error:row.errors.join(', ')||undefined})))
+      setParseError(null)
+    } catch(error) {setParseError(error instanceof Error?error.message:'Không phân tích được dữ liệu đã dán')}
   }
 
-  function handleConfirmImport() {
-    const validRows = parsedRows.filter((r) => r.isValid)
-    if (validRows.length === 0) return
-
-    onImport(
-      validRows.map((r) => ({
-        code: r.code,
-        fullName: r.fullName,
-        classes: r.classes,
-        dateOfBirth: r.dateOfBirth,
-        email: r.email,
-      }))
-    )
-    handleClose()
+  async function handleConfirmImport() {
+    if (validCount === 0) return
+    const file = selectedFile ?? new File([pasteContent], 'student-list.csv', { type: 'text/csv' })
+    setIsImporting(true)
+    try { await onImport(file); handleClose() }
+    catch (error) { setParseError(error instanceof Error ? error.message : 'Import sinh viên thất bại') }
+    finally { setIsImporting(false) }
   }
 
   const validCount = parsedRows.filter((r) => r.isValid).length
@@ -380,10 +389,10 @@ Mã sinh viên,Họ và tên,Lớp,Ngày Sinh,Email
           <button
             type="button"
             className="btn btn-green"
-            disabled={validCount === 0}
+            disabled={validCount === 0 || validCount !== parsedRows.length || isImporting}
             onClick={handleConfirmImport}
           >
-            Import {validCount > 0 ? `(${validCount} sinh viên)` : ''}
+            {isImporting ? 'Đang import…' : `Import ${validCount > 0 ? `(${validCount} sinh viên)` : ''}`}
           </button>
         </div>
       </div>

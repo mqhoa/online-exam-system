@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { AuthenticatedUser, UserRole } from '../auth/types'
+import type { AuthenticatedUser } from '../auth/types'
 import { TeacherGroups } from './TeacherGroups'
 import { TeacherQuestionBank } from './TeacherQuestionBank'
 import { TeacherExamManagement } from './TeacherExamManagement'
@@ -13,14 +13,12 @@ type TeacherDashboardProps = {
   user: AuthenticatedUser
   onSignOut: () => void
   isSigningOut?: boolean
-  onSwitchRole?: (role: UserRole) => void
 }
 
 export function TeacherDashboard({
   user,
   onSignOut,
   isSigningOut,
-  onSwitchRole,
 }: TeacherDashboardProps) {
   const [activeTab, setActiveTab] = useState<TeacherTab>('questions')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)

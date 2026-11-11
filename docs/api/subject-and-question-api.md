@@ -139,7 +139,7 @@ Trả `204 No Content`; phương án bị xóa cùng câu hỏi nhờ khóa ngo�
 
 ## Lược đồ ngân hàng câu hỏi
 
-SQL thủ công nằm tại `docs/database/question-bank-schema.sql`. Cấu hình local đang tắt Flyway; chạy toàn bộ script trong SQL Editor của DBeaver trên database phát triển trước khi khởi động backend, vì Hibernate đang dùng `ddl-auto=validate` và không tự tạo bảng. Script cần schema nền đã có các bảng `subjects`, `users`, `teacher_groups` và `teacher_group_members`. Script không xóa dữ liệu; `CREATE TABLE IF NOT EXISTS` cũng không sửa cấu trúc của bảng đã tồn tại, nên cần đối chiếu schema nếu database có sẵn bảng cùng tên. `V2__question_bank_and_subject_timestamp.sql` được giữ làm migration tương ứng cho quy trình Flyway sau này.
+Schema được quản lý bằng Flyway tại `backend/src/main/resources/db/migration`; Flyway chạy khi backend khởi động và Hibernate dùng `ddl-auto=validate` để kiểm tra mapping. Không chạy script SQL thủ công trên database mới. Với database đã có dữ liệu từ schema tạo thủ công, cần sao lưu và đối chiếu cấu trúc/lịch sử Flyway trước khi bật ứng dụng.
 
 - `questions`: khóa ngoại bắt buộc đến `teacher_groups` và `users` (người tạo), nội dung không rỗng, loại câu hỏi có ràng buộc enum, dấu thời gian tạo/cập nhật.
 - `options`: khóa ngoại đến câu hỏi, nội dung không rỗng, cờ đáp án đúng, thứ tự dương và duy nhất trong từng câu hỏi. Xóa câu hỏi sẽ xóa các phương án.

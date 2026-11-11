@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 import type { DashboardMenuId } from './types'
 import { StudentManagement } from './StudentManagement'
+import { AccountManagement } from '../admin/AccountManagement'
+import { AdminCatalogManagement } from '../admin/AdminCatalogManagement'
 import { OtherViews } from './OtherViews'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
-import type { AuthenticatedUser, UserRole } from '../auth/types'
+import type { AuthenticatedUser } from '../auth/types'
 import './Dashboard.css'
 
 type DashboardLayoutProps = {
   user: AuthenticatedUser
   onSignOut: () => void
   isSigningOut?: boolean
-  onSwitchRole?: (role: UserRole) => void
 }
 
 interface MenuItemDef {
@@ -19,7 +20,7 @@ interface MenuItemDef {
   icon: (collapsed: boolean) => React.ReactNode
 }
 
-export function DashboardLayout({ user, onSignOut, isSigningOut, onSwitchRole }: DashboardLayoutProps) {
+export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayoutProps) {
   const [activeMenu, setActiveMenu] = useState<DashboardMenuId>('students')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -39,7 +40,7 @@ export function DashboardLayout({ user, onSignOut, isSigningOut, onSwitchRole }:
   const menuItems: MenuItemDef[] = [
     {
       id: 'classes',
-      label: 'Quản Lý Lớp Học',
+      label: 'Nhóm Giảng Viên',
       icon: () => (
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="8" y1="6" x2="21" y2="6" />
@@ -127,6 +128,11 @@ export function DashboardLayout({ user, onSignOut, isSigningOut, onSwitchRole }:
           <line x1="3" y1="18" x2="3.01" y2="18" />
         </svg>
       ),
+    },
+    {
+      id: 'users',
+      label: 'Quản Lý Tài Khoản',
+      icon: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M19 8v6M16 11h6"/></svg>,
     },
   ]
 
@@ -246,6 +252,10 @@ export function DashboardLayout({ user, onSignOut, isSigningOut, onSwitchRole }:
         <main className="dashboard-main-content">
           {activeMenu === 'students' ? (
             <StudentManagement />
+          ) : activeMenu === 'users' ? (
+            <AccountManagement />
+          ) : activeMenu === 'classes' || activeMenu === 'subjects' ? (
+            <AdminCatalogManagement viewId={activeMenu} />
           ) : (
             <OtherViews
               viewId={activeMenu}

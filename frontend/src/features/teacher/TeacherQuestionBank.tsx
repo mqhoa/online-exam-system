@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Question, QuestionOption } from './teacherMockData'
 import { examApi, csrfHeaders } from '../exam/examApi'
 import { authApi } from '../auth/api/authApi'
+import { questionExcelApi } from './questionExcelApi'
 
 export function TeacherQuestionBank() {
   const [questions, setQuestions] = useState<Question[]>([])
@@ -24,6 +25,7 @@ export function TeacherQuestionBank() {
     { content: '', correct: false },
   ])
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+  const importInput=useRef<HTMLInputElement>(null)
 
   useEffect(() => { examApi.groups().then((items) => { setGroups(items); if (items[0]) setFormGroupId(items[0].id) })
     .catch((error: unknown) => alert(error instanceof Error ? error.message : 'Không tải được nhóm')) }, [])
@@ -39,6 +41,22 @@ export function TeacherQuestionBank() {
       difficulty: 'Trung bình', points: 0.5 }))))
       .catch((error: unknown) => alert(error instanceof Error ? error.message : 'Không tải được câu hỏi'))
   }, [groups])
+
+  async function refreshQuestions(){
+    const batches=await Promise.all(groups.map(async(group)=>{const response=await fetch(`/api/questions?teacherGroupId=${group.id}`,{credentials:'include'});if(!response.ok)throw new Error('Không tải được ngân hàng câu hỏi');return response.json() as Promise<Array<{id:number;teacherGroupId:number;content:string;questionType:Question['questionType'];createdAt:string;options:QuestionOption[]}>>}))
+    setQuestions(batches.flat().map((q)=>({...q,teacherGroupName:groups.find((g)=>g.id===q.teacherGroupId)?.name??'',difficulty:'Trung bình',points:0.5})))
+  }
+
+  async function importExcel(file:File){
+    if(selectedGroup===0)throw new Error('Chọn một nhóm giảng viên trước khi import câu hỏi')
+    const result=await questionExcelApi.import(selectedGroup,file)
+    await refreshQuestions();showToast(`Đã import ${result.importedCount} câu hỏi vào nhóm.`)
+  }
+
+  async function downloadQuestions(){
+    if(selectedGroup===0){alert('Chọn một nhóm giảng viên để xuất câu hỏi.');return}
+    try{await questionExcelApi.export(selectedGroup)}catch(error){alert(error instanceof Error?error.message:'Không thể xuất câu hỏi')}
+  }
 
   function showToast(msg: string) {
     setToastMsg(msg)
@@ -212,6 +230,10 @@ export function TeacherQuestionBank() {
         </div>
 
         <div className="action-buttons-group">
+          <input ref={importInput} type="file" accept=".xlsx,.xls" hidden onChange={(event)=>{const file=event.target.files?.[0];if(file)void importExcel(file).catch((error:unknown)=>alert(error instanceof Error?error.message:'Import thất bại'));event.currentTarget.value=''}} />
+          <button type="button" className="action-btn btn-green-action" disabled={selectedGroup===0} onClick={()=>importInput.current?.click()}>Import Excel</button>
+          <button type="button" className="action-btn btn-yellow-action" onClick={()=>void questionExcelApi.template().catch((error:unknown)=>alert(error instanceof Error?error.message:'Không tải được mẫu'))}>Tải mẫu Excel</button>
+          <button type="button" className="action-btn btn-secondary" disabled={selectedGroup===0} onClick={()=>void downloadQuestions()}>Export Excel</button>
           <button type="button" className="action-btn btn-teal-action" onClick={handleOpenAdd}>
             <span className="btn-icon">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">

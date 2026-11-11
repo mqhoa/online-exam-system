@@ -5,6 +5,7 @@ export interface Student {
   classes: string[]
   dateOfBirth: string
   email: string
+  enabled?: boolean
 }
 
 export type DashboardMenuId =
@@ -15,6 +16,7 @@ export type DashboardMenuId =
   | 'exams'
   | 'schedules'
   | 'students'
+  | 'users'
 
 export interface MenuItem {
   id: DashboardMenuId

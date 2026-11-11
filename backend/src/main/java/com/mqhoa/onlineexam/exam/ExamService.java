@@ -1,10 +1,11 @@
 package com.mqhoa.onlineexam.exam;
 
-import static com.mqhoa.onlineexam.exam.ExamDtos.*;
+import static com.mqhoa.onlineexam.exam.dto.ExamDtos.*;
 import com.mqhoa.onlineexam.common.ForbiddenOperationException;
 import com.mqhoa.onlineexam.common.InvalidRequestException;
 import com.mqhoa.onlineexam.common.ResourceNotFoundException;
 import com.mqhoa.onlineexam.question.QuestionType;
+import com.mqhoa.onlineexam.exam.repository.ExamRepository;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -18,18 +19,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ExamService {
     private final JdbcTemplate jdbc;
-    public ExamService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final ExamRepository repository;
+    public ExamService(JdbcTemplate jdbc, ExamRepository repository) { this.jdbc = jdbc; this.repository = repository; }
 
     private record Actor(long id, String role) {}
+    private static final String SHORT_ANSWER_MATCH = "EXISTS (SELECT 1 FROM options o WHERE o.question_id=q.id AND o.is_correct=TRUE AND (" +
+            "regexp_replace(lower(btrim(COALESCE(ea.answer_text,''))), '[[:space:]]+', ' ', 'g') = regexp_replace(lower(btrim(o.content)), '[[:space:]]+', ' ', 'g') " +
+            "OR (CASE WHEN regexp_replace(lower(btrim(COALESCE(ea.answer_text,''))), '[[:space:]]+', ' ', 'g') ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$' " +
+            "AND regexp_replace(lower(btrim(o.content)), '[[:space:]]+', ' ', 'g') ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$' " +
+            "THEN regexp_replace(lower(btrim(COALESCE(ea.answer_text,''))), '[[:space:]]+', ' ', 'g')::numeric = regexp_replace(lower(btrim(o.content)), '[[:space:]]+', ' ', 'g')::numeric ELSE FALSE END)))";
     private Actor actor(Authentication auth) {
-        return jdbc.queryForObject("SELECT id, role FROM users WHERE lower(username)=lower(?) AND enabled=TRUE",
-                (rs, n) -> new Actor(rs.getLong(1), rs.getString(2)), auth.getName());
+        var actor = repository.findEnabledActor(auth.getName());
+        return new Actor(actor.id(), actor.role());
     }
     private void requireRole(Actor a, String... roles) {
         if (Arrays.stream(roles).noneMatch(a.role()::equals)) throw new ForbiddenOperationException("Your role cannot perform this operation");
     }
     private boolean member(long teacherId, long groupId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM teacher_group_members WHERE teacher_id=? AND group_id=?)", Boolean.class, teacherId, groupId));
+        return repository.isTeacherGroupMember(teacherId, groupId);
     }
 
     @Transactional
@@ -86,8 +93,10 @@ public class ExamService {
     public AttemptView start(long examId,String pin,Authentication auth) {
         Actor a=actor(auth); requireRole(a,"STUDENT"); ExamRow exam=examRow(examId);
         if(!"PUBLISHED".equals(exam.status()) || Instant.now().isBefore(exam.start()) || !Instant.now().isBefore(exam.end())) throw new InvalidRequestException("This exam is not open");
+        if(repository.isPinLocked(examId,a.id())) throw new InvalidRequestException("Too many incorrect PIN attempts; try again in 10 minutes");
         String expected=jdbc.queryForObject("SELECT pin FROM exams WHERE id=?",String.class,examId);
-        if(!Objects.equals(pin,expected)) throw new InvalidRequestException("Incorrect exam PIN");
+        if(!Objects.equals(pin,expected)) { repository.recordFailedPin(examId,a.id()); throw new InvalidRequestException("Incorrect exam PIN"); }
+        repository.clearPinFailures(examId,a.id());
         List<Long> existing=jdbc.query("SELECT id FROM exam_attempts WHERE exam_id=? AND student_id=?",(rs,n)->rs.getLong(1),examId,a.id());
         long attemptId;
         if(!existing.isEmpty()) {
@@ -131,7 +140,8 @@ public class ExamService {
         Actor a=actor(auth); requireRole(a,"STUDENT"); AttemptRow at=lockAttempt(attemptId,a);
         if(!"IN_PROGRESS".equals(at.status())) return result(attemptId,a,false);
         boolean timedOut=!Instant.now().isBefore(at.deadline());
-        BigDecimal[] totals=jdbc.query("SELECT COALESCE(SUM(eq.score),0), COALESCE(SUM(CASE WHEN q.question_type='SHORT_ANSWER' THEN CASE WHEN lower(btrim(COALESCE(ea.answer_text,''))) IN (SELECT lower(btrim(o.content)) FROM options o WHERE o.question_id=q.id AND o.is_correct=TRUE) THEN eq.score ELSE 0 END WHEN NOT EXISTS(SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id EXCEPT SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE) AND NOT EXISTS(SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE EXCEPT SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id) THEN eq.score ELSE 0 END),0) FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers ea ON ea.question_id=q.id AND ea.attempt_id=? WHERE eq.exam_id=?",rs->{rs.next();return new BigDecimal[]{rs.getBigDecimal(1),rs.getBigDecimal(2)};},attemptId,at.examId());
+        String scoreSql="SELECT COALESCE(SUM(eq.score),0), COALESCE(SUM(CASE WHEN q.question_type='SHORT_ANSWER' THEN CASE WHEN "+SHORT_ANSWER_MATCH+" THEN eq.score ELSE 0 END WHEN NOT EXISTS(SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id EXCEPT SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE) AND NOT EXISTS(SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE EXCEPT SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id) THEN eq.score ELSE 0 END),0) FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers ea ON ea.question_id=q.id AND ea.attempt_id=? WHERE eq.exam_id=?";
+        BigDecimal[] totals=jdbc.query(scoreSql,rs->{rs.next();return new BigDecimal[]{rs.getBigDecimal(1),rs.getBigDecimal(2)};},attemptId,at.examId());
         jdbc.update("UPDATE exam_attempts SET status=?,submitted_at=CURRENT_TIMESTAMP,total_score=? WHERE id=? AND status='IN_PROGRESS'",timedOut?"AUTO_SUBMITTED":"SUBMITTED",totals[1],attemptId);
         return result(attemptId,a,false);
     }
@@ -188,7 +198,8 @@ public class ExamService {
     private void submitAsSystem(long id) {
         AttemptRow at=jdbc.query("SELECT id,exam_id,student_id,deadline,status FROM exam_attempts WHERE id=? FOR UPDATE",rs->{if(!rs.next())return null;return new AttemptRow(rs.getLong(1),rs.getLong(2),rs.getLong(3),rs.getTimestamp(4).toInstant(),rs.getString(5));},id);
         if(at==null||!"IN_PROGRESS".equals(at.status()))return;
-        BigDecimal score=jdbc.queryForObject("SELECT COALESCE(SUM(CASE WHEN q.question_type='SHORT_ANSWER' THEN CASE WHEN lower(btrim(COALESCE(ea.answer_text,''))) IN (SELECT lower(btrim(o.content)) FROM options o WHERE o.question_id=q.id AND o.is_correct=TRUE) THEN eq.score ELSE 0 END WHEN NOT EXISTS(SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id EXCEPT SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE) AND NOT EXISTS(SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE EXCEPT SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id) THEN eq.score ELSE 0 END),0) FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers ea ON ea.question_id=q.id AND ea.attempt_id=? WHERE eq.exam_id=?",BigDecimal.class,id,at.examId());
+        String scoreSql="SELECT COALESCE(SUM(CASE WHEN q.question_type='SHORT_ANSWER' THEN CASE WHEN "+SHORT_ANSWER_MATCH+" THEN eq.score ELSE 0 END WHEN NOT EXISTS(SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id EXCEPT SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE) AND NOT EXISTS(SELECT id FROM options WHERE question_id=q.id AND is_correct=TRUE EXCEPT SELECT option_id FROM exam_answer_options WHERE answer_id=ea.id) THEN eq.score ELSE 0 END),0) FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers ea ON ea.question_id=q.id AND ea.attempt_id=? WHERE eq.exam_id=?";
+        BigDecimal score=jdbc.queryForObject(scoreSql,BigDecimal.class,id,at.examId());
         jdbc.update("UPDATE exam_attempts SET status='AUTO_SUBMITTED',submitted_at=CURRENT_TIMESTAMP,total_score=? WHERE id=? AND status='IN_PROGRESS'",score,id);
     }
 }

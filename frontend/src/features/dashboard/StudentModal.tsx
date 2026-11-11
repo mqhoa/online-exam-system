@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { Student } from './types'
 
 type StudentModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSave: (student: Omit<Student, 'id'>, existingId?: string) => void
+  onSave: (student: Omit<Student, 'id'>, existingId?: string) => Promise<void>
   studentToEdit?: Student | null
 }
 
@@ -24,12 +24,20 @@ export function StudentModal({
   const [dateOfBirth, setDateOfBirth] = useState(studentToEdit?.dateOfBirth ?? '2000-01-01')
   const [email, setEmail] = useState(studentToEdit?.email ?? '')
   const [formError, setFormError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if(!isOpen)return
+    setCode(studentToEdit?.code??'');setFullName(studentToEdit?.fullName??'')
+    setClassesInput(studentToEdit?.classes.join(', ')??'THH1525')
+    setDateOfBirth(studentToEdit?.dateOfBirth??'2000-01-01');setEmail(studentToEdit?.email??'');setFormError(null)
+  },[isOpen,studentToEdit])
 
   if (!isOpen) return null
 
   const isEditing = Boolean(studentToEdit)
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setFormError(null)
 
@@ -59,7 +67,8 @@ export function StudentModal({
       parsedClasses.push('THH1525')
     }
 
-    onSave(
+    setSaving(true)
+    try { await onSave(
       {
         code: trimmedCode,
         fullName: trimmedName,
@@ -68,8 +77,7 @@ export function StudentModal({
         email: trimmedEmail,
       },
       studentToEdit?.id
-    )
-    onClose()
+    );onClose() } catch(error) {setFormError(error instanceof Error?error.message:'Không thể lưu sinh viên')} finally {setSaving(false)}
   }
 
   function handleQuickClassToggle(className: string) {
@@ -194,8 +202,8 @@ export function StudentModal({
             >
               Hủy bỏ
             </button>
-            <button type="submit" className="btn btn-teal">
-              {isEditing ? 'Lưu thay đổi' : 'Thêm mới'}
+            <button type="submit" className="btn btn-teal" disabled={saving}>
+              {saving?'Đang lưu…':isEditing ? 'Lưu thay đổi' : 'Thêm mới'}
             </button>
           </div>
         </form>

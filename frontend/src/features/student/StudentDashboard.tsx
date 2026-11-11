@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { AuthenticatedUser, UserRole } from '../auth/types'
+import type { AuthenticatedUser } from '../auth/types'
 import type { StudentExam } from './studentMockData'
 import type { ExamSubmissionResult } from './StudentExamRoom'
 import { StudentExamList } from './StudentExamList'
@@ -14,14 +14,12 @@ type StudentDashboardProps = {
   user: AuthenticatedUser
   onSignOut: () => void
   isSigningOut?: boolean
-  onSwitchRole?: (role: UserRole) => void
 }
 
 export function StudentDashboard({
   user,
   onSignOut,
   isSigningOut,
-  onSwitchRole,
 }: StudentDashboardProps) {
   const [activeTab, setActiveTab] = useState<StudentTab>('exams')
   const [activeExam, setActiveExam] = useState<StudentExam | null>(null)

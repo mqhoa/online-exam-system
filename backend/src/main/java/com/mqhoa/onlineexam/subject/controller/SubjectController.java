@@ -39,4 +39,10 @@ public class SubjectController {
         }
         return subjectService.createSubject(request.code().trim(), request.name().trim(), request.description());
     }
+
+    @PutMapping("/{id}")
+    public Subject updateSubject(@PathVariable long id,@Valid @RequestBody CreateSubjectRequest request,Authentication authentication){
+        if(authentication.getAuthorities().stream().noneMatch(a->a.getAuthority().equals("ROLE_ADMIN"))) throw new ForbiddenOperationException("Only administrators can update subjects");
+        return subjectService.updateSubject(id,request.code().trim(),request.name().trim(),request.description());
+    }
 }

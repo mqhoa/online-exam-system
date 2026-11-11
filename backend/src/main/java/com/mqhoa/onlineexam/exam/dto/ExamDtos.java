@@ -1,4 +1,4 @@
-package com.mqhoa.onlineexam.exam;
+package com.mqhoa.onlineexam.exam.dto;
 
 import com.mqhoa.onlineexam.question.QuestionType;
 import jakarta.validation.Valid;
@@ -15,6 +15,7 @@ public final class ExamDtos {
             @Positive int durationMinutes, @NotBlank @Size(max=20) String pin,
             @NotEmpty @Size(max=200) List<@Valid QuestionPick> questions) {}
     public record AnswerRequest(@NotNull List<@Positive Long> optionIds, String answerText) {}
+    public record PinRequest(String pin) {}
     public record OptionView(long id, String content, int position) {}
     public record ExamQuestionView(long id, int position, String content, QuestionType questionType,
             BigDecimal score, List<OptionView> options) {}

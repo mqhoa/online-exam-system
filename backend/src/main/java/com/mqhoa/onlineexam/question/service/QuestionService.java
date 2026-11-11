@@ -147,4 +147,10 @@ public class QuestionService {
             }
         }
     }
+
+    public void validateImportedQuestion(String content,QuestionType type,List<QuestionOptionRequest> options){
+        if(content==null||content.isBlank())throw new InvalidRequestException("Question content is required");
+        if(type==null)throw new InvalidRequestException("Question type is required");
+        validateOptions(type,options);
+    }
 }

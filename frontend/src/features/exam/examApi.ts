@@ -4,7 +4,7 @@ export type ExamView = { id: number; teacherGroupId: number; title: string; desc
 export type SavedAnswer = { questionId: number; optionIds: number[]; answerText: string | null }
 export type AttemptView = { id: number; examId: number; deadline: string; status: 'IN_PROGRESS' | 'SUBMITTED' | 'AUTO_SUBMITTED'; exam: ExamView; answers: SavedAnswer[] }
 export type ResultView = { attemptId: number; examId: number; examTitle: string; studentId: number; studentUsername: string; studentName: string; status: string; submittedAt: string | null; score: number; totalScore: number }
-export type TeacherGroup = { id: number; name: string; subjectCode: string; subjectName: string }
+export type TeacherGroup = { id: number; name: string; subjectCode: string; subjectName: string; memberCount:number; questionCount:number; examCount:number; enabled:boolean }
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 export function csrfHeaders(): Record<string, string> {

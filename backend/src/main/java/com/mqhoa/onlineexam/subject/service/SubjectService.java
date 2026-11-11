@@ -5,6 +5,7 @@ import com.mqhoa.onlineexam.subject.repository.SubjectRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import com.mqhoa.onlineexam.common.ResourceNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
@@ -29,5 +30,12 @@ public class SubjectService {
         } catch (DataIntegrityViolationException exception) {
             throw new IllegalArgumentException("Subject code already exists", exception);
         }
+    }
+
+    public Subject updateSubject(long id,String code,String name,String description){
+        Subject subject=subjectRepository.findById(id).orElseThrow(()->new ResourceNotFoundException("Subject",id));
+        if(subjectRepository.existsByCodeIgnoreCase(code) && !subject.getCode().equalsIgnoreCase(code)) throw new IllegalArgumentException("Subject code already exists");
+        subject.update(code,name,description);
+        return subjectRepository.save(subject);
     }
 }
