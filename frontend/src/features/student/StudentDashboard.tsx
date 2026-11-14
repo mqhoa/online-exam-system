@@ -7,6 +7,7 @@ import { StudentExamRoom } from './StudentExamRoom'
 import { StudentExamResult } from './StudentExamResult'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { examApi, type AttemptView, type ResultView } from '../exam/examApi'
+import { ChangePasswordDialog } from '../auth/components/ChangePasswordDialog'
 
 type StudentTab = 'exams' | 'history'
 
@@ -26,6 +27,7 @@ export function StudentDashboard({
   const [latestResult, setLatestResult] = useState<ExamSubmissionResult | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -121,6 +123,8 @@ export function StudentDashboard({
                   <div className="user-menu-language">
                     <LanguageSwitcher />
                   </div>
+                  <div className="user-menu-divider" />
+                  <button type="button" className="user-menu-signout" onClick={() => {setIsPasswordDialogOpen(true);setIsUserMenuOpen(false)}}><span>Đổi mật khẩu</span></button>
                   <div className="user-menu-divider" />
                   <button
                     type="button"
@@ -282,6 +286,7 @@ export function StudentDashboard({
           )}
         </main>
       </div>
+      {isPasswordDialogOpen&&<ChangePasswordDialog onClose={()=>setIsPasswordDialogOpen(false)}/>}
     </div>
   )
 }

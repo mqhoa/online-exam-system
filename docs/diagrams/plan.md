@@ -1,5 +1,6 @@
 
 # 1. Tổng quan đề tài
+> **Ghi chú cập nhật:** Đây là đặc tả nền/phạm vi gốc. Trạng thái as-built, hợp đồng API và quyết định kiến trúc hiện tại xem `docs/README.md`, `docs/presentation/defense-guide.md`, `docs/architecture/system-design.md` và `docs/api/api-spec.md`. Các mục dưới đây có chỗ là yêu cầu/kế hoạch, không phải tất cả đều đã triển khai.
 ## 1.1. Tên đề tài
 XÂY DỰNG HỆ THỐNG THI TRỰC TUYẾN HỖ TRỢ QUẢN LÝ NGÂN HÀNG CÂU HỎI, TỔ CHỨC KỲ THI VÀ TỰ ĐỘNG CHẤM ĐIỂM
 
@@ -30,7 +31,7 @@ XÂY DỰNG HỆ THỐNG THI TRỰC TUYẾN HỖ TRỢ QUẢN LÝ NGÂN HÀNG C�
 - Quyền tham gia thi: quyền vào thi được kiểm soát bằng tài khoản sinh viên, thời gian thi và mã PIN.
     + Sinh viên chỉ nhìn thấy các kỳ thi có trạng thái PUBLISHED.
     + API trả đề thi cho sinh viên dùng DTO riêng, tuyệt đối không trả trường is_correct hay đáp án.
-    + Giới hạn số lần nhập sai PIN (ví dụ 5 lần / sinh viên / kỳ thi, khóa tạm vài phút). Dùng bộ đếm trong DB hoặc bộ nhớ ứng dụng, không cần Redis.
+    + Hiện thực: 5 lần PIN sai theo sinh viên/kỳ thi sẽ khóa 10 phút; bộ đếm nằm trong PostgreSQL (`exam_pin_attempts`).
     + Mọi API câu hỏi và kỳ thi của Teacher phải kiểm tra Teacher thuộc group tương ứng (teacher_group_members).
     + Mỗi sinh viên chỉ có một attempt cho mỗi kỳ thi.
 
@@ -42,7 +43,7 @@ XÂY DỰNG HỆ THỐNG THI TRỰC TUYẾN HỖ TRỢ QUẢN LÝ NGÂN HÀNG C�
     + Autosave bài làm trước hết được thực hiện qua Backend → PostgreSQL. Redis chỉ là thành phần mở rộng/tối ưu, không phải nguồn dữ liệu chính.
     + Trình duyệt có thể lưu tạm các đáp án chưa đồng bộ để giảm rủi ro mất dữ liệu khi mất mạng ngắn; đây không phải chế độ offline hoàn chỉnh.
     + Sinh viên có thể resume attempt IN_PROGRESS sau F5/đóng tab hoặc khôi phục kết nối.
-    + Tự động nộp khi hết giờ: lazy khi có request kết hợp scheduler quét định kỳ.
+    + Hiện thực: scheduler 5 giây/lần chọn tối đa 100 attempt quá deadline; submit path cũng xác định AUTO_SUBMITTED theo server time.
     + Submit và auto-submit phải idempotent; xử lý tranh chấp bằng chuyển trạng thái nguyên tử IN_PROGRESS → SUBMITTED/AUTO_SUBMITTED.
     + Chấm điểm được thực hiện phía server.
 
@@ -54,7 +55,7 @@ flowchart TB
     USER["Người dùng"]
     FE["Frontend<br/>React + TypeScript"]
     API["Backend<br/>Spring Boot"]
-    SECURITY["Spring Security<br/>JWT + RBAC"]
+    SECURITY["Spring Security<br/>Session Cookie + CSRF + RBAC"]
 
     SUBJ["Subject Management"]
     GROUP["Teacher Group Management"]
@@ -65,11 +66,10 @@ flowchart TB
     AI["AI Generation"]
 
     PG["PostgreSQL<br/>Source of Truth"]
-    REDIS["Redis<br/>Optional Cache / Temporary State / Rate Limit"]
     GEMINI["Gemini API"]
 
     USER --> FE
-    FE -->|"REST API + JWT"| API
+    FE -->|"REST API + Session Cookie + CSRF"| API
     API --> SECURITY
     SECURITY --> SUBJ
     SECURITY --> GROUP
@@ -87,7 +87,6 @@ flowchart TB
     GRADING --> PG
     AI --> PG
 
-    API -.-> REDIS
     AI -.-> GEMINI
 ```
 
@@ -97,11 +96,9 @@ flowchart LR
     FE["React + TypeScript"]
     API["Spring Boot REST API<br/>Modular Monolith"]
     PG["PostgreSQL<br/>Source of Truth"]
-    REDIS["Redis<br/>Optional Extension"]
 
     FE --> API
     API --> PG
-    API -.-> REDIS
 ```
 
 
@@ -456,8 +453,8 @@ flowchart TB
 | Frontend | React + TypeScript |
 | Backend | Spring Boot 4.1.1 / Java 17 |
 | Database | PostgreSQL |
-| Temporary storage | Redis (tùy chọn, chỉ làm sau mốc MVP nếu còn thời gian) |
-| Authentication | Spring Security + JWT |
+| Temporary storage | Browser localStorage chỉ giữ đáp án pending; Redis chưa triển khai |
+| Authentication | Spring Security + session cookie + CSRF |
 | AI | Gemini API |
 | PDF | PDFBox |
 | Excel | Apache POI |
@@ -500,7 +497,7 @@ gantt
 | Tuần    | Nội dung                                                        | Mức độ    |
 | ------- | --------------------------------------------------------------- | --------- |
 | **W1**  | Project setup + Git + Docker + PostgreSQL + Spring Boot + React | Bắt buộc  |
-| **W2**  | Flyway + User + Login + JWT + RBAC                              | Bắt buộc  |
+| **W2**  | Flyway + User + Login + session cookie + RBAC                   | Bắt buộc  |
 | **W3**  | Subject + Teacher Group                                         | Bắt buộc  |
 | **W4**  | Question Bank + Question CRUD                                   | Bắt buộc  |
 | **W5**  | Exam Management + publish/lock                                  | Bắt buộc  |

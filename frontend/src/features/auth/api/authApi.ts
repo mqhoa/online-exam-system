@@ -27,6 +27,30 @@ function csrfHeader(): Record<string, string> {
 }
 
 export const authApi = {
+  async requestPasswordReset(email: string): Promise<void> {
+    await request(`${authEndpoint}/csrf`, { method: 'GET' })
+    const response = await request(`${authEndpoint}/password/forgot`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+    })
+    if (!response.ok) throw new AuthApiError(response.status === 503 ? 'service-unavailable' : 'request-failed')
+  },
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    await request(`${authEndpoint}/csrf`, { method: 'GET' })
+    const response = await request(`${authEndpoint}/password/reset`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password }),
+    })
+    if (!response.ok) throw new AuthApiError(response.status === 503 ? 'service-unavailable' : 'request-failed')
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await request(`${authEndpoint}/csrf`, { method: 'GET' })
+    const response = await request(`${authEndpoint}/password/change`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }),
+    })
+    if (!response.ok) throw new AuthApiError(response.status === 503 ? 'service-unavailable' : 'request-failed')
+  },
+
   async login(credentials: LoginCredentials): Promise<AuthenticatedUser> {
     await request(`${authEndpoint}/csrf`, { method: 'GET' })
     const response = await request(`${authEndpoint}/login`, {

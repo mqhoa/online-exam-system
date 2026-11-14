@@ -2,6 +2,7 @@
 -- SAMPLE SEED DATA SCRIPT: HỆ THỐNG THI TRỰC TUYẾN
 -- Cơ sở dữ liệu: PostgreSQL 16
 -- Khởi tạo dữ liệu chuẩn cho Admin, Giảng viên, Sinh viên, Môn học, Kỳ thi
+-- LEGACY standalone seed. Current seed data is versioned in Flyway V4/V5.
 -- =============================================================================
 
 -- 1. BẢNG NGƯỜI DÙNG (USERS)

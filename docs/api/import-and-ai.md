@@ -26,3 +26,11 @@ Cột cần có: `Mã sinh viên`, `Họ và tên`, `Ngày sinh` theo `yyyy-MM-d
 - `POST /api/ai/generations/{id}/approve`: JSON `{ "questionIndexes": [0, 1] }`, lưu các câu đã duyệt vào ngân hàng câu hỏi.
 
 PDF tối đa 10 MB có lớp văn bản; PDF scan chưa hỗ trợ OCR. Cấu hình `GEMINI_API_KEY` cho tiến trình backend (không đưa key vào frontend hoặc Git). `GEMINI_MODEL` và `AI_UPLOAD_DIR` có thể ghi đè qua biến môi trường. Nếu chưa có key, job sẽ báo `FAILED` với hướng dẫn cấu hình.
+
+## Đổi và quên mật khẩu
+
+- `POST /api/v1/auth/password/change` (đang đăng nhập): `{ "currentPassword": "...", "newPassword": "..." }`.
+- `POST /api/v1/auth/password/forgot` (công khai): `{ "email": "..." }`; phản hồi chung để không tiết lộ email/tài khoản có tồn tại hay không.
+- `POST /api/v1/auth/password/reset` (công khai): `{ "token": "...", "password": "..." }`; token ngẫu nhiên chỉ dùng một lần, hết hạn sau 30 phút và chỉ bản băm SHA-256 được lưu trong DB.
+
+Khôi phục qua email cần bật `MAIL_ENABLED=true` và cấu hình `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM`, `FRONTEND_BASE_URL`. Nếu chưa cấu hình SMTP, người dùng cần liên hệ admin để được đặt lại mật khẩu. Admin cũng có thể đặt mật khẩu mới trong màn quản lý tài khoản. Mật khẩu người dùng được băm bằng BCrypt; hệ thống không thể đọc lại mật khẩu gốc.

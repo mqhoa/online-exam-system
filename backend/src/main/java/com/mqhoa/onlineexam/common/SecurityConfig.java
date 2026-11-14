@@ -35,7 +35,7 @@ public class SecurityConfig {
         return http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/csrf", "/error").permitAll()
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/csrf", "/api/v1/auth/password/forgot", "/api/v1/auth/password/reset", "/error").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

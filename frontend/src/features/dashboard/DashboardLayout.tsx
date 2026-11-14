@@ -5,6 +5,8 @@ import { AccountManagement } from '../admin/AccountManagement'
 import { AdminCatalogManagement } from '../admin/AdminCatalogManagement'
 import { OtherViews } from './OtherViews'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { ChangePasswordDialog } from '../auth/components/ChangePasswordDialog'
+import { useI18n } from '../../i18n'
 import type { AuthenticatedUser } from '../auth/types'
 import './Dashboard.css'
 
@@ -21,9 +23,11 @@ interface MenuItemDef {
 }
 
 export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayoutProps) {
+  const { t } = useI18n()
   const [activeMenu, setActiveMenu] = useState<DashboardMenuId>('students')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   // Close user dropdown when clicking outside
@@ -180,12 +184,16 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
                 <div className="user-menu-dropdown" style={{ width: 240 }}>
                   <div className="user-menu-info">
                     <p className="user-menu-name">{user.fullName || 'Admin'}</p>
-                    <p className="user-menu-role">Quản trị viên ({user.username})</p>
+                    <p className="user-menu-role">{user.role} ({user.username})</p>
                   </div>                  
                   <div className="user-menu-divider" />
                   <div className="user-menu-language">
                     <LanguageSwitcher />
                   </div>
+                  <div className="user-menu-divider" />
+                  <button type="button" className="user-menu-signout" onClick={() => {setIsPasswordDialogOpen(true);setIsUserMenuOpen(false)}}>
+                    <span>{t('changePassword')}</span>
+                  </button>
                   <div className="user-menu-divider" />
                   <button
                     type="button"
@@ -264,6 +272,7 @@ export function DashboardLayout({ user, onSignOut, isSigningOut }: DashboardLayo
           )}
         </main>
       </div>
+      {isPasswordDialogOpen&&<ChangePasswordDialog onClose={()=>setIsPasswordDialogOpen(false)}/>}
     </div>
   )
 }

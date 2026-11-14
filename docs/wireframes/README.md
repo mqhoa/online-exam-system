@@ -6,7 +6,7 @@ Mockup desktop: [online-exam-mockup.html](./online-exam-mockup.html). Mở file 
 
 Đây là cổng đăng nhập chung cho Admin, Teacher và Student. Người dùng không chọn vai trò: backend xác thực tài khoản, trả về hồ sơ và quyền đã gán, rồi frontend điều hướng theo vai trò đó.
 
-Frontend dùng endpoint dự kiến `POST /api/v1/auth/login`, `GET /api/v1/auth/me` và `POST /api/v1/auth/logout`. Hợp đồng request/response và trạng thái triển khai được mô tả trong [đặc tả API](../api/api-spec.md). Hiện backend chưa triển khai các endpoint xác thực; form không giả lập đăng nhập thành công và sẽ hiển thị lỗi dịch vụ nếu API chưa sẵn sàng.
+Frontend đang dùng `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`, cùng endpoint đổi/quên mật khẩu. Hợp đồng và trạng thái triển khai ở [API reference](../api/api-spec.md). Login dùng backend session, không giả lập vai trò.
 
 ## Nguyên tắc thiết kế
 
@@ -14,7 +14,7 @@ Frontend dùng endpoint dự kiến `POST /api/v1/auth/login`, `GET /api/v1/auth
 - Hỗ trợ co giãn trên màn hình nhỏ nhưng không mô phỏng giao diện quản trị bằng khung điện thoại.
 - Form gồm tên đăng nhập, mật khẩu, hiện/ẩn mật khẩu, trạng thái đang xác thực và lỗi rõ ràng.
 - Ngôn ngữ có thể đổi Việt/Anh; vai trò luôn lấy từ kết quả xác thực phía server.
-- Phiên đăng nhập dự kiến dùng cookie `HttpOnly`, `SameSite=Lax`; frontend không lưu access token trong `localStorage` hoặc `sessionStorage`.
+- Phiên đăng nhập dùng cookie session do Spring Security quản lý, kèm CSRF token; frontend không lưu access token trong `localStorage` hoặc `sessionStorage`.
 
 ## Cấu trúc frontend
 

@@ -1,4 +1,9 @@
 -- =============================================================================
+-- LEGACY / DESTRUCTIVE RESET SCRIPT. DO NOT RUN ON A DATABASE TO KEEP.
+-- This starts with DROP TABLE statements, is not the current schema history,
+-- and does not include all migrations V5-V8. Current schema is managed by
+-- backend/src/main/resources/db/migration using Flyway.
+-- =============================================================================
 -- FULL SCHEMA DDL: HỆ THỐNG THI TRỰC TUYẾN (ONLINE EXAM SYSTEM)
 -- Cơ sở dữ liệu: PostgreSQL 16
 -- Dựa trên đặc tả kiến trúc: docs/diagrams/plan.md (Mục 2.2 ERD)

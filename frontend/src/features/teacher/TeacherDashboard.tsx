@@ -6,6 +6,7 @@ import { TeacherExamManagement } from './TeacherExamManagement'
 import { TeacherAiGeneration } from './TeacherAiGeneration'
 import { TeacherExamResults } from './TeacherExamResults'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { ChangePasswordDialog } from '../auth/components/ChangePasswordDialog'
 
 type TeacherTab = 'groups' | 'questions' | 'exams' | 'ai-gen' | 'results'
 
@@ -23,6 +24,7 @@ export function TeacherDashboard({
   const [activeTab, setActiveTab] = useState<TeacherTab>('questions')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -85,6 +87,8 @@ export function TeacherDashboard({
                   <div className="user-menu-language">
                     <LanguageSwitcher />
                   </div>
+                  <div className="user-menu-divider" />
+                  <button type="button" className="user-menu-signout" onClick={() => {setIsPasswordDialogOpen(true);setIsUserMenuOpen(false)}}><span>Đổi mật khẩu</span></button>
                   <div className="user-menu-divider" />
                   <button
                     type="button"
@@ -229,6 +233,7 @@ export function TeacherDashboard({
           {activeTab === 'results' && <TeacherExamResults />}
         </main>
       </div>
+      {isPasswordDialogOpen&&<ChangePasswordDialog onClose={()=>setIsPasswordDialogOpen(false)}/>}
     </div>
   )
 }

@@ -1,5 +1,5 @@
--- Run once against the development database while Flyway is disabled.
--- This script only creates the missing question-bank schema; it does not delete data.
+-- LEGACY MANUAL PATCH from the period when Flyway was disabled.
+-- Current deployments use Flyway migrations V1-V8; do not apply this patch on top.
 
 ALTER TABLE subjects
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP;

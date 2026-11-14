@@ -3,6 +3,7 @@ package com.mqhoa.onlineexam.auth;
 import com.mqhoa.onlineexam.auth.dto.LoginRequest;
 import com.mqhoa.onlineexam.auth.dto.UserView;
 import com.mqhoa.onlineexam.auth.service.AuthService;
+import com.mqhoa.onlineexam.auth.service.PasswordRecoveryService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -20,9 +21,33 @@ import org.springframework.security.web.csrf.CsrfToken;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final AuthService authService;
+    private final PasswordRecoveryService passwordRecovery;
     private final HttpSessionSecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
-    public AuthController(AuthService authService) { this.authService = authService; }
+    public AuthController(AuthService authService, PasswordRecoveryService passwordRecovery) { this.authService = authService; this.passwordRecovery=passwordRecovery; }
+
+    public record ForgotPasswordRequest(String email) {}
+    public record ResetPasswordRequest(String token,String password) {}
+    public record ChangePasswordRequest(String currentPassword,String newPassword) {}
+    public record MessageResponse(String message) {}
+
+    @PostMapping("/password/forgot")
+    public MessageResponse forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        passwordRecovery.requestReset(request.email());
+        return new MessageResponse("If the email matches an account, a password reset link will be sent.");
+    }
+
+    @PostMapping("/password/reset")
+    public MessageResponse resetPassword(@RequestBody ResetPasswordRequest request) {
+        passwordRecovery.resetPassword(request.token(),request.password());
+        return new MessageResponse("Password updated. You can now sign in.");
+    }
+
+    @PostMapping("/password/change")
+    public MessageResponse changePassword(@RequestBody ChangePasswordRequest request,Authentication authentication) {
+        passwordRecovery.changePassword(authentication.getName(),request.currentPassword(),request.newPassword());
+        return new MessageResponse("Password updated.");
+    }
 
     @GetMapping("/csrf")
     public Map<String, String> csrf(CsrfToken token) { return Map.of("token", token.getToken()); }
